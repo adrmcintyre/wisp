@@ -1,0 +1,17 @@
+(quasiquote #(10 5 (unquote (sqt 4)) (unquote-splicing (map sqt (quote (16 9)))) 8))  ==> #(10 5 (unquote (sqt 4)) (unquote-splicing (map sqt (quote (16 9)))) 8)
+ BUT EXPECTED #(10 5 2 4 3 8)
+--
+(#<primitive:string->number> ".")  ==> 0.000000
+ BUT EXPECTED #f
+--
+(#<primitive:string->number> "d")  ==> 0.000000
+ BUT EXPECTED #f
+--
+(#<primitive:string->number> "D")  ==> 0.000000
+ BUT EXPECTED #f
+--
+(#<primitive:string->number> "-")  ==> 0
+ BUT EXPECTED #f
+--
+(#<primitive:string->number> "+")  ==> 0
+ BUT EXPECTED #f

@@ -1,0 +1,7 @@
+AC_INIT
+AM_CONFIG_HEADER(config.h)
+AM_INIT_AUTOMAKE(wisp,0.1)
+AC_PROG_CC
+AC_PROG_INSTALL
+ACX_WITH_READLINE
+AC_OUTPUT(Makefile doc/Makefile m4/Makefile src/Makefile)

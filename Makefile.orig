@@ -1,0 +1,52 @@
+TARGET := wisp
+CFLAGS :=
+LIBFLAGS :=
+
+system := $(shell uname -s)
+sources := $(wildcard *.c)
+objects := $(patsubst %.c,build/%.o,$(sources))
+
+CFLAGS += -g
+#CFLAGS += -O4
+#CFLAGS += -D DEBUG_HEAP
+#CFLAGS += -D PROFILE_ENABLE
+CFLAGS += -D TRACE_EVAL_ENABLE
+CFLAGS += -Wall
+# generate info for gprof
+#CFLAGS += -pg
+#LIBFLAGS += -pg
+
+# CFLAGS += $(shell mysql_config --cflags)
+# CFLAGS += -D ENABLE_MYSQL
+# LIBFLAGS += $(shell mysql_config --libs)
+
+# RL_LIBRARY_VERSION := 5.0
+# READLINE_LIB := libreadline.a
+# HISTORY_LIB := libhistory.a
+# CFLAGS += -DREADLINE_LIBRARY -DRL_LIBRARY_VERSION='"$(RL_LIBRARY_VERSION)"' -DUSE_READLINE
+CFLAGS += -DREADLINE_LIBRARY -DUSE_READLINE
+LIBFLAGS += -lreadline
+# ifneq ($(system),Darwin)
+# CFLAGS += -lncurses
+# endif
+
+.PHONY: $(TARGET) all clean
+
+all: $(TARGET)
+
+clean:
+	rm -f $(TARGET) build/*
+
+include $(patsubst %.c,build/%.d,$(sources))
+
+$(TARGET): $(objects)
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBFLAGS)
+
+build/%.o: %.c
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+# generate dep files automatically
+build/%.d: %.c
+	set -e; $(CC) -MM $(CFLAGS) $< \
+		| sed 's|\($*\)\.o[ :]*|build/\1.o $@ : |g' > $@; \
+		[ -s $@ ] || rm -f $@            

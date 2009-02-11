@@ -1,0 +1,302 @@
+7.2. Formal Semantics
+
+<< ... >> ::= sequence
+s ? k     ::= kth member of s
+#s        ::= length(s)
+s & t     ::= concat s t
+s ! k     ::= drop first k elts of s
+t -> a,b  ::= if t then a else b
+p[x/i]    ::= subst rho with x for i
+x in D    ::= injection of x into domain D
+x | D     ::= projection of x to domain D
+
+
+7.2.1. Abstract Syntax
+
+K e Con        constants including quotations
+I e Ide        identifiers (variables)
+E e Exp        expressions
+G e Com = Exp  commands
+
+Exp --> K | I | (E0 E*)
+      | (lambda (I*) G* E0)
+      | (lambda (I* . I) G* E0)
+      | (lambda I G* E0)
+      | (if E0 E1 E2) | (if E0 E1)
+      | (set! I E)
+
+
+7.2.2. Domain equations
+
+  alpha e L                       locations
+     nu e N                       natural numbers
+          T = {false, true}       booleans
+          Q                       symbols
+          H                       characters
+          R                       numbers
+          Ep = L x L x T          pairs
+          Ev = L* x T             vectors
+          Es = L* x T             strings
+          M = {false, true, null, undefined, unspecified}
+                                  miscellaneous
+    phi e F = L x (E* -> K -> C)  procedure values
+epsilon e E = Q + H + R + Ep + Ev + Es + M + F
+                                  expressed values
+  sigma e S = L -> (E x T)        stores
+    rho e U = Ide -> L            environments
+  theta e C = S -> A              command continuations
+  kappa e K = E* -> C             expression continuations
+          A                       answers
+          X                       errors
+
+7.2.3. Semantic functions
+
+ KK : Con -> E
+ EE : Exp -> U -> K -> C
+EE* : Exp* -> U -> K -> C
+ CC : Com* -> U -> C -> C
+
+EE[K] = lambda rho kappa . send(KK[K]) kappa
+
+EE[I] = lambda rho kappa . hold(lookup rho I)
+                               (single(lambda epsilon . epsilon = undefined ->
+                                                                  wrong "undefined var",
+                                                                  send epsilon kappa))
+
+EE[(E0 E*)] =
+  lambda rho kappa . EE*(permute(<< E0 >> & E*))
+                        rho
+                        (lambda epsilon* . ((lambda epsilon* . applicate(epsilon* ? 1)(epsilon* ! 1) kappa)
+                                            (unpermute epsilon*)))
+
+EE[(LAMBDA (I*) G* E0)] =
+  lambda rho kappa . lambda sigma .
+    new sigma e L ->
+      send(<< new sigma | L,
+            lambda epsilon* kappa' . #epsilon* = #I* ->
+                                       tievals(lambda alpha* . (lambda rho' . CC[G*] rho' (EE[E0] rho' kappa'))
+                                                               (extends rho I* alpha*))
+                                              epsilon*,
+                                       wrong "wrong num args" >>
+            in E)
+          kappa
+          (update (new sigma | L) unspecified sigma),
+      wrong "out of memory" sigma
+
+EE[(LAMBDA (I* . I) G* E0)] =
+  lambda rho kappa . lambda sigma .
+    new sigma e L ->
+      send(<< new sigma | L,
+            lambda epsilon* kappa' . #epsilon* >= #I* ->
+                                       tievalsrest
+                                         (lambda alpha* . (lambda rho' . CC[G*] rho' (EE[E0] rho' kappa'))
+                                                               (extends rho (I* & << I >>) alpha*))
+                                              epsilon*
+                                              (#I*),
+                                       wrong "wrong too few arguments" >> in E)
+          kappa
+          (update (new sigma | L) unspecified sigma),
+      wrong "out of memory" sigma
+
+EE[(LAMBDA I G* E0)] = EE[(lambda (. I) G* E0)]
+
+EE[(if E0 E1 E2)] =
+  lambda rho kappa . EE[E0] rho (single (lambda epsilon . truish epsilon -> EE[E1] rho kappa,
+                                                             EE[E2] rho kappa))
+
+EE[(if E0 E1)] =
+  lambda rho kappa . EE[E0] rho (single (lambda epsilon . truish epsilon -> EE[E1] rho kappa,
+                                                             send unspecified kappa))
+
+Here and elsewhere, any expressed value other than 'undefined'
+may be used in place of 'unspecified'.
+
+EE[(set! I E)] =
+  lambda rho kappa . EE[E] rho (single(lambda epsilon . assign(lookup rho I)
+                                                        epsilon
+                                                        (send unspecified kappa)))
+
+EE*[] = lambda rho kappa . kappa << >>
+
+EE*[E0 E*] =
+  lambda rho kappa . EE[E0] rho (single(lamba epsilon0 . EE*[E*] rho (lambda epsilon* . kappa (<< epsilon0 >> & epsilon*))))
+
+CC[] = lambda rho theta . theta
+
+CC[G0 G*] = lambda rho theta . EE[G0] rho (lambda epsilon* . CC[G*] rho theta)
+
+
+7.2.4. Auxiliary functions
+
+lookup: U -> Ide -> L
+lookup = lambda rho I . rho I
+
+extends : U -> Ide* -> L* -> U
+extends =
+  lambda rho I* alpha* . #I* = 0 -> rho,
+                          extends(rho[(alpha* ? 1) / (I* ? 1)]) (I* ! 1) (alpha* ! 1)
+
+wrong: X -> C    [implementation-dependent]
+
+send: E -> K -> C
+send = lambda epsilon kappa . kappa << epsilon >>
+
+single: (E -> C) -> K
+single =
+  lambda psi epsilon* . #epsilon* = 1 -> psi(epsilon* ? 1),
+                          wrong "wrong number of return values"
+
+new: S -> (L + {error})   [implementation-dependent]
+
+hold: L -> K -> C
+hold = lambda alpha kappa sigma . send(sigma alpha ? 1) kappa sigma
+
+assign: L -> E -> C -> C
+assign = lambda alpha epsilon theta sigma . theta(update alpha epsilon sigma)
+
+update: L -> E -> S -> S
+update = lambda alpha epsilon sigma . sigma[<< epsilon, true >> / alpha]
+
+tievals: (L* -> C) -> E* -> C
+tievals =
+  lambda psi epsilon* sigma . #epsilon* = 0 -> psi << >> sigma,
+                              new sigma e L -> tievals(lambda alpha* . psi(<< new sigma | L >> & alpha*))
+                                                      (epsilon* ! 1)
+                                                      (update (new sigma | L)(epsilon* ? 1) sigma),
+                               wrong "out of memory" sigma
+
+tievalsrest: (L* -> C) -> E* -> N -> C
+tievalsrest =
+  lambda psi epsilon* nu . list(dropfirst epsilon* nu)
+                            (single (lambda epsilon . tievals psi ((takefirst epsilon* nu) & << epsilon >>)))
+
+dropfirst = lambda l n . n = 0 -> l, dropfirst (l ! 1) (n - 1)
+takefirst = lambda l n . n = 0 -> << >>, << l ? 1 >> & (takefirst (l ! 1) (n - 1))
+
+truish: E -> T
+truish = lambda epsilon . epsilon = false -> false, true
+
+permute: Exp* -> Exp*    [implementation-dependent]
+unpermute: E* -> E*  [inverse of permute]
+
+applicate: E -> E* -> K -> C
+applicate =
+  lambda epsilon epsilon* kappa . epsilon e F -> (epsilon | F ? 2) epsilon* kappa, wrong "bad procedure"
+
+onearg: (E -> K -> C) -> (E* -> K -> C)
+onearg =
+  lambda zeta epsilon* kappa . #epsilon* = 1 -> zeta (epsilon* ? 1) kappa,
+                                wrong "wrong number of arguments"
+
+twoarg: (E -> E -> K -> C) -> (E* -> K -> C)
+twoarg =
+  lambda zeta epsilon* kappa . #epsilon* = 2 -> zeta (epsilon* ? 1) (epsilon* ? 2) kappa,
+                                wrong "wrong number of arguments"
+
+list: E* -> K -> C
+list =
+  lambda epsilon* kappa . #epsilon* = 0 -> send null kappa,
+                            list(epsilon* ! 1)(single(lambda epsilon . cons << epsilon* ! 1, epsilon >> kappa))
+
+cons: E* -> K ->C
+cons =
+  twoarg(lambda epsilon1 epsilon2 kappa sigma . new sigma e L -> 
+                                                 (lambda sigma' . new sigma' e L ->
+                                                                    send(<< new sigma | L, new sigma' | L, true >>
+                                                                          in E)
+                                                                        kappa
+                                                                        (update(new sigma' | L) epsilon2 sigma'),
+                                                                    wrong "out of memory" sigma')
+                                                 (update(new sigma | L) epsilon1 sigma),
+                                                 wrong "out of memory" sigma)
+
+less: E* -> K -> C
+less =
+  twoarg(lambda epsilon1 epsilon2 kappa . (epsilon1 e R /\ epsilon2 e R) ->
+                                              send(epsilon1 | R < epsilon2 | R -> true, false) kappa,
+                                              wrong "non-numeric argument to <")
+
+add: E* -> K -> C
+add =
+  twoarg(lambda epsilon1 epsilon2 kappa . (epsilon1 e R /\ epsilon2 e R) -> 
+                                              send(epsilon1 | R + epsilon2 | R) in E) kappa,
+                                              wrong "non-numeric argument to +")
+
+car: E* -> K -> C
+car =
+  onearg(lambda epsilon kappa . epsilon e Ep -> hold(epsilon | Ep ? 1) kappa,
+                                        wrong "non-pair argument to car")
+
+cdr: E* -> K -> C
+cdr = [similar to car]
+
+setcar: E* -> K -> C
+setcar =
+  twoarg(lambda epsilon1 epsilon2 kappa . epsilon1 e Ep ->
+                                          (epsilon1 | Ep ? 3) -> assign(epsilon1 | Ep ? 1)
+                                                                       epsilon2
+                                                                       (send unspecified kappa),
+                                            wrong "immutable argument to set-car!",
+                                          wrong "non-pair argument to set-car!")
+
+eqv: E* -> K -> C
+eqv =
+  twoarg(lambda epsilon1 epsilon2 kappa . (epsilon1 e M /\ epsilon2 e M) ->
+                                             send(epsilon1 | M = epsilon2 | M -> true, false) kappa,
+                                          (epsilon1 e Q /\ epsilon2 e Q) ->
+                                             send(epsilon1 | Q = epsilon2 | Q -> true, false) kappa,
+                                          (epsilon1 e H /\ epsilon2 e H) ->
+                                             send(epsilon1 | H = epsilon2 | H -> true, false) kappa,
+                                          (epsilon1 e R /\ epsilon2 e R) ->
+                                             send(epsilon1 | R = epsilon2 | R -> true, false) kappa,
+                                          (epsilon1 e Ep /\ epsilon2 e Ep) ->
+                                             send((lambda p1 p2 . ((p1 ? 1) = (p2 ? 1) /\
+                                                                   (p1 ? 2) = (p2 ? 2)) -> true,
+                                                                      false)
+                                                  (epsilon1 | Ep)
+                                                  (epsilon2 | Ep))
+                                                kappa,
+                                          (epsilon1 e Ev /\ epsilon2 e Ev) -> ...,
+                                          (epsilon1 e Es /\ epsilon2 e Es) -> ...,
+                                          (epsilon1 e F /\ epsilon2 e F) ->
+                                             send((epsilon1 | F ? 1) = (epsilon2 | F ? 1) -> true, false)
+                                                  kappa,
+                                             send false kappa)
+
+apply: E* -> K -> C
+apply =
+  twoarg(lambda epsilon1 epsilon2 kappa . epsilon1 e F -> valueslist << epsilon2 >> (lambda epsilon* . applicate epsilon1 epsilon* kappa),
+                                            wrong "bad procedure argument to apply"
+
+valueslist: E* -> K -> C
+valueslist =
+  onearg(lambda epsilon kappa . epsilon e Ep ->
+                                  cdr << epsilon >>
+                                    (lambda epsilon* . valueslist
+                                                       epsilon*
+                                                       (lambda epsilon* . car << epsilon >> (single(lambda epsilon . kappa(<< epsilon >> & epsilon*))))),
+                                epsilon = null -> kappa << >>,
+                                  wrong "non-list argument to values-list")
+
+cwcc: E* -> K -> C  [call-with-current-continuation]
+cwcc =
+  onearg(lambda epsilon kappa . epsilon e F ->
+                                  (lambda sigma . new sigma e L ->
+                                                    applicate epsilon
+                                                              << << new sigma | L, lambda epsilon* kappa' . kappa epsilon* >> in E >>
+                                                              kappa
+                                                              (update (new sigma | L)
+                                                                      unspecified
+                                                                      sigma),
+                                                    wrong "out of memory" sigma),
+                                  wrong " bad procedure argument")
+
+values: E* -> K -> C
+values = lambda epsilon* kappa . kappa epsilon*
+
+cwv: E* -> K -> C  [call-with-values]
+cwv =
+  twoarg(lambda epsilon1 epsilon2 kappa . applicate epsilon1 << >> (lambda epsilon* . applicate epsilon2 epsilon*) kappa)
+
+
+

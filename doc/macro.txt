@@ -1,0 +1,202 @@
+4.3
+If a macro transformer inserts a binding for an identifier (veriable or 
+keyword), the identifier will in effect be renamed throughout its scope to 
+avoid conflict with other identifiers. Note that a 'define' at top level may or 
+may not introduce a binding: see section 5.2
+
+If a macro transformer inserts a free reference to an identifier, the reference 
+refers to the binding that was visible where the transformer was specified, 
+regardless of any local bindings that may surround the use of the macro.
+
+
+4.3.1 Binding constructs for syntactic keywords
+
+Let-syntax and letrec-syntax are analogous to let and letrec, but they bind 
+syntactic keywords to macro transformers instead of binding variables to 
+locations that contain values. Syntactic keywords may also be bound at top 
+level; see section 5.3.
+
+[[syntax]] (let-syntax <bindings> <body>)
+
+Syntax: <Bindings> should have the form
+
+    ((<keyword> <transformer spec>) ...)
+
+Each <keyword> is an identifier, each <transformer spec> is an instance of 
+syntax-rules, and <body> should be a sequence of one or more expressions. It is 
+an error for a <keyword> to appear more than once in the list of keywords being 
+bound.
+
+Semantics: The <body> is expanded in the syntactic environment obtained by 
+extending the syntactic environment of the let-syntax expression with macros 
+whose keywords are the <keyword>s, bound to the specified transformers. Each 
+binding of a <keyword> has <body> as its region.
+
+  (let-syntax ((when (syntax-rules ()
+                       ((when test stmt1 stmt2 ...)
+                        (if test
+                            (begin stmt1
+                                   stmt2 ...))))))
+    (let ((if #t))
+      (when if (set! if 'now))
+      if))                           =>  now
+
+  (let ((x 'outer))
+    (let-syntax ((m (syntax-rules () ((m) x))))
+      (let ((x 'inner))
+        (m))))                       =>  outer
+
+[[syntax]] (letrec-syntax <bindings> <body>)
+
+Syntax: Same as for let-syntax.
+
+Semantics: The <body> is expanded in the syntactic environment obtained by 
+extending the syntactic environment of the letrec-syntax expression with macros 
+whose keywords are the <keyword>s, bound to the specified transformers. Each 
+binding of a <keyword> has the <bindings> as well as the <body> within its 
+region, so the transformers can transcribe expressions into uses of the macros 
+introduced by the letrec-syntax expression.
+
+  (letrec-syntax
+    ((my-or (syntax-rules ()
+              ((my-or) #f)
+              ((my-or e) e)
+              ((my-or e1 e2 ...)
+               (let ((temp e1))
+                 (if temp
+                     temp
+                     (my-or e2 ...)))))))
+    (let ((x #f)
+          (y 7)
+          (temp 8)
+          (let odd?)
+          (if even?))
+      (my-or x
+             (let temp)
+             (if y)
+             y)))        =>  7
+
+
+4.3.2 Pattern language
+
+A <transformer spec> has the following form:
+
+  (syntax-rules <literals> <syntax rule> ...)
+
+Syntax: <Literals> is a list of identifiers and each <syntax rule> should be of 
+the form
+
+    (<pattern> <template>)
+
+The <pattern> in a <syntax rule> is a list <pattern> that begins with the 
+keyword for the macro.
+
+A <pattern> is either an identifier, a constant, or one of the following
+
+  (<pattern> ...)
+  (<pattern> <pattern> ... . <pattern>)
+  (<pattern> ... <pattern> <ellipsis>)
+  #(<pattern> ...)
+  #(<pattern> ... <pattern> <ellipsis>)
+
+and a template is either an identifier, a constant, or one of the following
+
+  (<element> ...)
+  (<element> <element> ... . <template>)
+  #(<element> ...)
+
+where an <element> is a <template> optionally followed by an <ellipsis> and an 
+<ellipsis> is the identifier "..." (which cannot be used as an identifier in 
+either a template or a pattern).
+
+Semantics: An instance of syntax-rules produces a new macro transformer by 
+specifying a sequence of hygienic rewrite rules. A use of a macro whose keyword 
+is associated with a transformer specified by syntax-rules is matched against 
+the patterns contained in the <syntax rule>s, beginning with the leftmost 
+<syntax rule>. When a match is found, the macro use is transcribed hygienically 
+according to the template.
+
+An identifier that appears in the pattern of a <syntax rule> is a pattern 
+variable, unless it is the keyword that begins the pattern, is listed in 
+<literals>, or is the identifier "...". Pattern variables match arbitrary input 
+elements and are used to refer to elements of the input in the template. It is 
+an error for the same pattern variable to appear more than once in a <pattern>.
+
+The keyword at the beginning of the pattern in a <syntax rule> is not involved 
+in the matching and is not considered a pattern variable or literal identifier.
+
+Rationale: The scope of the keyword is determined by the expression or syntax 
+definition that binds it to the associated macro transformer. If the keyword 
+were a pattern variable or literal identifier, then the template that follows 
+the pattern would be within its scope regardless of whether the keyword were 
+bound by let-syntax or by letrec-syntax.
+
+Identifiers that appear in <literals> are interpreted as literal identifiers to 
+be matched against corresponding subforms of the input. A subform in the input 
+matches a literal identifier if and only if it is an identifier and either both 
+its occurrence in the macro expression and its occurrence in the macro 
+definition have the same lexical binding, or the two identifiers are equal and 
+both have no lexical binding.
+
+A subpattern followed by ... can match zero or more elements of the input. It 
+is an error for ... to appear in <literals>. Within a pattern the identifier 
+... must follow the last element of a nonempty sequence of subpatterns.
+
+More formally, an input form F matches a pattern P if and only if:
+
+P is a non-literal identifier; or
+P is a literal identifier and F is an identifier with the same binding; or
+P is a list (P1 ... Pn) and F is a list of n forms that match P1 through Pn, 
+  respectively; or
+P is an improper list (P1 P2 ... Pn . Pn+1) and F is a list or improper list of 
+  n or more forms that match P1 through Pn, respectively, and whose nth "cdr" 
+  matches Pn+1; or
+P is of the form (P1 ... Pn Pn1 <ellipsis>) where <ellipsis> is the identifier 
+  ... and F is a proper list of at least n forms, the first n of which match P1 
+  through Pn, respectively, and each remaining element of F matches Pn+1; or
+P is a vector of the form #(P1 ... Pn) and F is a vector of n forms that match 
+P1 through Pn; or
+P is of the form #(P1 ... Pn Pn+1 <ellipsis>) where <ellipsis> is the 
+  identifier ... and F is a vector of n or more forms the first n of which match 
+P1 through Pn, respectively, and each remaining element of F matches Pn+1; or
+P is a datum and F is equal to P in the sense of the equal? procedure.
+
+It is an error to use a macro keyword, within the scope of its binding, in an 
+expression that does not match any of the patterns.
+
+When a macro use is transcribed according to the template of the matching 
+<syntax rule>, pattern variables that occur in the template are replaced by the 
+subforms they match in the input. Pattern variables that occur in subpatterns 
+followed by one or more instances of the identifier ... are allowed only in 
+subtemplates that are followed by as many instances of .... They are replaced 
+in the output by all of the subforms they match in the input, distributed as 
+indicated. It is an error if the output cannot be built up as specified.
+
+Identifiers that appear in the template but are not pattern variables or the 
+identifier ... are inserted into the output as literal identifiers. If a 
+literal identifier is inserted as a free identifier then it refers to the 
+binding of that identifier within whose scope the instance of syntax-rules 
+appears. If a literal identifier is inserted as a bound identifier then it is 
+in effect renamed to prevent inadvertent captures of free identifiers.
+
+As an example, if let and cond are defined as in section 7.3 then they are 
+hygienic (as required) and the following is not an error.
+
+  (let ((=> #f))
+    (cond (#t => 'ok)))           => ok
+
+The macro transformer for cond recognizes => as a local variable, and hence an 
+expression, and not as the top-level identifier =>, which the macro transformer 
+treats as a syntactic keyword. Thus the example expands into
+
+  (let ((=> #f))
+    (if #t (begin => 'ok)))
+
+instead of
+
+  (let ((=> #f))
+    (let ((temp #t))
+      (if temp ('ok temp))))
+
+which would result in an invalid procedure call.
+

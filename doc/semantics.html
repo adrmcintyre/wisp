@@ -1,0 +1,414 @@
+<html>
+<head>
+	<style>
+	table, pre, p, blockquote { font-size: 11pt; }
+	pre { font-family: times new roman, times, serif; }
+	.semfun { font-family: brush script mt;  }
+	.symbol { font-style: italic; }
+	.code   { font-family: courier new, courier, fixed, monospace; font-weight: normal; }
+	.domain { font-family: courier new, courier, fixed, monospace; font-weight: bold; }
+	.def { padding-left: 1em; }
+	</style>
+</head>
+
+<body>
+<h2>7.2. Formal Semantics</h2>
+
+<p>
+This section provides a formal denotational semantics for
+the primitive expressions of Scheme and selected built-in
+procedures. The concepts and notation used here are described
+in [29]; the notation is summarized below:
+</p>
+
+<table>
+<tr>
+	<td>&lang;&hellip;&rang;</td>
+	<td class="def">sequence formation</td>
+</tr>
+<tr>
+	<td><span class="symbol">s</span> &darr; <span class="symbol">k</span></td>
+	<td class="def"><span class="symbol">k</span>th member of the sequence <span class="symbol">s</span> (1-based)</td>
+</tr>
+<tr>
+	<td>#<span class="symbol">s</span></td>
+	<td class="def">length of sequence <span class="symbol">s</span></td>
+</tr>
+<tr>
+	<td><span class="symbol">s</span> &sect; <span class="symbol">t</span></td>
+	<td class="def">concatenation of sequences <span class="symbol">s</span> and <span class="symbol">t</span></td>
+</tr>
+<tr>
+	<td><span class="symbol">s</span> &dagger; <span class="symbol">k</span></td>
+	<td class="def">drop the first <span class="symbol">k</span> members of sequence <span class="symbol">s</span></td>
+</tr>
+<tr>
+	<td><span class="symbol">t</span> &rarr; <span class="symbol">a</span>, <span class="symbol">b</span></td>
+	<td class="def">McCarthy conditional &ldquo;if <span class="symbol">t</span> then <span class="symbol">a</span> else <span class="symbol">b</span>&rdquo;</td>
+</tr>
+<tr>
+	<td>&rho;[<span class="symbol">x</span>/<span class="symbol">i</span>]</td>
+	<td class="def">substitution &ldquo;&rho; with <span class="symbol">x</span> for <span class="symbol">i</span>&rdquo;</td>
+</tr>
+<tr>
+	<td><span class="symbol">x</span> in <span class="domain">D</span></td>
+	<td class="def">injection of <span class="symbol">x</span> into domain <span class="domain">D</span></td>
+</tr>
+<tr>
+	<td><span class="symbol">x</span> | <span class="domain">D</span></td>
+	<td class="def">projection of <span class="symbol">x</span> to domain <span class="domain">D</span></td>
+</tr>
+</table>
+
+<p>
+The reason that expression continuations take sequences
+of values instead of single values is to simplify the formal
+treatment of procedure calls and multiple return values.
+</p>
+<p>
+The boolean flag associated with pairs, vectors, and strings
+will be true for mutable objects and false for immutable
+objects.
+</p>
+<p>
+The order of evaluation within a call is unspecified. We
+mimic that here by applying arbitrary permutations <span class="symbol">permute</span>
+and <span class="symbol">unpermute</span>, which must be inverses, to the arguments
+in a call before and after they are evaluated. This is
+not quite right since it suggest, incorrectly, that order
+of evaluation is constant throughout a program (for any
+given number of arguments), but it is a closer approximation
+to the intended semantics than a left-to-right evaluation
+would be.
+</p>
+<p>
+The storage allocator <span class="symbol">new</span> is implementation-dependent,
+but it must obey the following axiom: if <span class="symbol">new</span> &sigma; &isin; <span class="domain">L</span>, then
+&sigma; (<span class="symbol">new</span> | <span class="domain">L</span>) &darr; 2 = <span class="symbol">false</span>.
+</p>
+<p>
+The definition of <span class="semfun">K</span> is omitted because an accurate definition
+of <span class="semfun">K</span> would complicate the semantics without being
+very interesting.
+</p>
+<p>
+If P is a program in which all variables are defined before
+being referenced or assigned, then the meaning of P is
+</p>
+<blockquote>
+	<span class="semfun">E</span>[<span class="code">((lambda (</span>I&lowast;<span class="code">) </span>P&prime;<span class="code">)</span> &lang;undefined&rang; &hellip;<span class="code">)</span>]
+</blockquote>
+<p>
+where I&lowast; is the sequence of variables defined in P, P&prime; is the
+sequence of expressions obtained by replacing every definition
+in P by an assignment, &lang;undefined&rang; is an expression
+that evaluates to <span class="symbol">undefined</span>, and <span class="semfun">E</span> is the semantic function
+that assigns meaning to expressions.
+</p>
+
+<h3>7.2.1. Abstract Syntax</h3>
+
+<table>
+<tr><td align="right">K      </td><td>&isin;</td><td>Con      </td><td class="def">constants including quotations</td></tr>
+<tr><td align="right">I      </td><td>&isin;</td><td>Ide      </td><td class="def">identifiers (variables)       </td></tr>
+<tr><td align="right">E      </td><td>&isin;</td><td>Exp      </td><td class="def">expressions                   </td></tr>
+<tr><td align="right">&Gamma;</td><td>&isin;</td><td>Com = Exp</td><td class="def">commands                      </td></tr>
+</table>
+
+<pre>
+Exp &rarr; K
+            | I
+            | <span class="code">(</span>E<sub>0</sub> E<sup>&lowast;</sup><span class="code">)</span>
+            | <span class="code">(lambda</span> (I<sup>&lowast;</sup>) &Gamma;<sup>&lowast;</sup> E<sub>0</sub><span class="code">)</span>
+            | <span class="code">(lambda</span> (I<sup>&lowast;</sup> . I) &Gamma;<sup>&lowast;</sup> E<sub>0</sub><span class="code">)</span>
+            | <span class="code">(lambda</span> I &Gamma;<sup>&lowast;</sup> E<sub>0</sub><span class="code">)</span>
+            | <span class="code">(if</span> E<sub>0</sub> E<sub>1</sub> E<sub>2</sub><span class="code">)</span> | <span class="code">(if</span> E<sub>0</sub> E<sub>1</sub><span class="code">)</span>
+            | <span class="code">(set!</span> I E<span class="code">)</span>
+</pre>
+
+<h3>7.2.2. Domain equations</h3>
+
+<table>
+<tr><td>&alpha;  </td><td>&isin;</td><td><span class="domain">L</span>            </td><td>                       </td><td class="def">locations                </td></tr>
+<tr><td>&nu;     </td><td>&isin;</td><td><span class="domain">N</span>            </td><td>                       </td><td class="def">natural numbers          </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">T</span>            </td><td>= {<span class="symbol">false</span>, <span class="symbol">true</span>}        </td><td class="def">booleans                 </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">Q</span>            </td><td>                       </td><td class="def">symbols                  </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">H</span>            </td><td>                       </td><td class="def">characters               </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">R</span>            </td><td>                       </td><td class="def">numbers                  </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">E<sub>p</sub></span></td><td>= <span class="domain">L</span> &times; <span class="domain">L</span> &times; <span class="domain">T</span>            </td><td class="def">pairs                    </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">E<sub>v</sub></span></td><td>= <span class="domain">L<sup>&lowast;</sup></span> &times; <span class="domain">T</span>    </td><td class="def">vectors                  </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">E<sub>s</sub></span></td><td>= <span class="domain">L<sup>&lowast;</sup></span> &times; <span class="domain">T</span>    </td><td class="def">strings                  </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">M</span>            </td><td colspan="2">= {<span class="symbol">false</span>, <span class="symbol">true</span>, <span class="symbol">null</span>, <span class="symbol">undefined</span>, <span class="symbol">unspecified</span>}</td></tr>
+<tr><td>         </td><td>      </td><td>             </td><td>                       </td><td class="def">miscellaneous            </td></tr>
+<tr><td>&phi;    </td><td>&isin;</td><td><span class="domain">F</span>            </td><td>= <span class="domain">L</span> &times; (<span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>)</td><td class="def">procedure values</td></tr>
+<tr><td>&epsilon;</td><td>&isin;</td><td><span class="domain">E</span>            </td><td colspan="2">= <span class="domain">Q</span> + <span class="domain">H</span> + <span class="domain">R</span> + <span class="domain">E<sub>p</sub></span> + <span class="domain">E<sub>v</sub></span> + <span class="domain">E<sub>s</sub></span> + <span class="domain">M</span> + <span class="domain">F</span></td></tr>
+<tr><td>         </td><td>      </td><td>             </td><td>                       </td><td class="def">expressed values         </td></tr>
+<tr><td>&sigma;  </td><td>&isin;</td><td><span class="domain">S</span>            </td><td>= <span class="domain">L</span> &rarr; (<span class="domain">E</span> &times; <span class="domain">T</span>)     </td><td class="def">stores                   </td></tr>
+<tr><td>&rho;    </td><td>&isin;</td><td><span class="domain">U</span>            </td><td>= Ide &rarr; <span class="domain">L</span>         </td><td class="def">environments             </td></tr>
+<tr><td>&theta;  </td><td>&isin;</td><td><span class="domain">C</span>            </td><td>= <span class="domain">S</span> &rarr; <span class="domain">A</span>           </td><td class="def">command continuations    </td></tr>
+<tr><td>&kappa;  </td><td>&isin;</td><td><span class="domain">K</span>            </td><td>= <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">C</span></td><td class="def">expression continuations </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">A</span>            </td><td>                       </td><td class="def">answers                  </td></tr>
+<tr><td>         </td><td>      </td><td><span class="domain">X</span>            </td><td>                       </td><td class="def">errors                   </td></tr>
+</table>
+
+<h3>7.2.3. Semantic functions</h3>
+
+<table>
+<tr><td><span class="semfun">K</span>            </td><td>:</td><td>Con &rarr; <span class="domain">E</span></td></tr>
+<tr><td><span class="semfun">E</span>            </td><td>:</td><td>Exp &rarr; <span class="domain">U</span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span></td></tr>
+<tr><td><span class="semfun">E</span><sup>&lowast;</sup></td><td>:</td><td>Exp<sup>&lowast;</sup> &rarr; <span class="domain">U</span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span></td></tr>
+<tr><td><span class="semfun">C</span>            </td><td>:</td><td>Com<sup>&lowast;</sup> &rarr; <span class="domain">U</span> &rarr; <span class="domain">C</span> &rarr; <span class="domain">C</span></td></tr>
+</table>
+
+<p>
+Definition of <span class="semfun">K</span> deliberately omitted.
+</p>
+
+<pre>
+ <span class="semfun">E</span>[K] = &lambda;&rho;&kappa; . <span class="symbol">send</span>(<span class="semfun">K</span>[K]) &kappa;
+
+ <span class="semfun">E</span>[I] = &lambda;&rho;&kappa; . <span class="symbol">hold</span>(<span class="symbol">lookup</span> &rho; I)
+                               (<span class="symbol">single</span>(&lambda;&epsilon; . &epsilon; = <span class="symbol">undefined</span> &rarr;
+                                                           <span class="symbol">wrong</span> &ldquo;undefined var&rdquo;
+                                                        <span class="symbol">send</span> &epsilon; &kappa;))
+
+ <span class="semfun">E</span>[<span class="code">(</span>E<sub>0</sub> E<sup>&lowast;</sup><span class="code">)</span>] =
+     &lambda;&rho;&kappa; . <span class="semfun">E</span><sup>&lowast;</sup>(<span class="symbol">permute</span>(&lang;E<sub>0</sub>&rang; &sect; E<sup>&lowast;</sup>))
+                   &rho;
+                   (&lambda;&epsilon;<sup>&lowast;</sup> . ((&lambda;&epsilon;<sup>&lowast;</sup> . <span class="symbol">applicate</span>(&epsilon;<sup>&lowast;</sup> &darr; 1)(&epsilon;<sup>&lowast;</sup> &dagger; 1) &kappa;)
+                               (<span class="symbol">unpermute</span> &epsilon;<sup>&lowast;</sup>)))
+
+<span class="semfun">E</span>[<span class="code">(lambda </span>(I<sup>&lowast;</sup>) &Gamma;<sup>&lowast;</sup> E<sub>0</sub><span class="code">)</span>] =
+    &lambda;&rho;&kappa; . &lambda;&sigma; .
+         <span class="symbol">new</span> &sigma; &isin; <span class="domain">L</span> &rarr;
+             <span class="symbol">send</span>(&lang;<span class="symbol">new</span> &sigma; | <span class="domain">L</span>,
+                         &lambda;&epsilon;<sup>&lowast;</sup>&kappa;&prime; . #&epsilon;<sup>&lowast;</sup> = #I<sup>&lowast;</sup> &rarr;
+                                        <span class="symbol">tievals</span>(&lambda;&alpha;<sup>&lowast;</sup> . (&lambda;&rho;&prime; . <span class="semfun">C</span>[&Gamma;<sup>&lowast;</sup>] &rho;&prime; (<span class="semfun">E</span>[E<sub>0</sub>] &rho;&prime; &kappa;&prime;))
+                                                               (<span class="symbol">extends</span> &rho; I<sup>&lowast;</sup> &alpha;<sup>&lowast;</sup>))
+                                                    &epsilon;<sup>&lowast;</sup>,
+                                        <span class="symbol">wrong</span> &ldquo;wrong number of arguments&rdquo;&rang;
+                         in <span class="domain">E</span>)
+                      &kappa;
+                      (update (new &sigma; | <span class="domain">L</span>) <span class="symbol">unspecified</span> &sigma;),
+             <span class="symbol">wrong</span> &ldquo;out of memory&rdquo; &sigma;
+
+<span class="semfun">E</span>[<span class="code">(lambda </span>(I<sup>&lowast;</sup> . I) &Gamma;<sup>&lowast;</sup> E<sub>0</sub><span class="code">)</span>] =
+    &lambda;&rho;&kappa; . &lambda;&sigma; .
+        <span class="symbol">new</span> &sigma; &isin; <span class="domain">L</span> &rarr;
+            <span class="symbol">send</span>(&lang;<span class="symbol">new</span> &sigma; | <span class="domain">L</span>,
+                        &lambda;&epsilon;<sup>&lowast;</sup>&kappa;&prime; . #&epsilon;<sup>&lowast;</sup> &ge; #I<sup>&lowast;</sup> &rarr;
+                                        tievalsrest
+                                            (&lambda;&alpha;<sup>&lowast;</sup> . (&lambda;&rho;&prime; . <span class="semfun">C</span>[&Gamma;<sup>&lowast;</sup>] &rho;&prime; (<span class="semfun">E</span>[E<sub>0</sub>] &rho;&prime; &kappa;&prime;))
+                                                        (extends &rho; (I<sup>&lowast;</sup> &sect; &lang;I&rang;) &alpha;<sup>&lowast;</sup>))
+                                            &epsilon;<sup>&lowast;</sup>
+                                            (#I<sup>&lowast;</sup>),
+                                        <span class="symbol">wrong</span> &ldquo;too few arguments&rdquo;&rang; in <span class="domain">E</span>)
+                        &kappa;
+                        (<span class="symbol">update</span> (<span class="symbol">new</span> &sigma; | <span class="domain">L</span>) <span class="symbol">unspecified</span> &sigma;),
+            <span class="symbol">wrong</span> &ldquo;out of memory&rdquo; &sigma;
+
+<span class="semfun">E</span>[<span class="code">(lambda </span>I &Gamma;<sup>&lowast;</sup> E<sub>0</sub><span class="code">)</span>] = <span class="semfun">E</span>[<span class="code">(lambda (. </span>I<span class="code">)</span> &Gamma;<sup>&lowast;</sup> E<sub>0</sub><span class="code">)</span>]
+
+<span class="semfun">E</span>[<span class="code">(if </span>E<sub>0</sub> E<sub>1</sub> E<sub>2</sub><span class="code">)</span>] =
+    &lambda;&rho;&kappa; . <span class="semfun">E</span>[E<sub>0</sub>] &rho; (<span class="symbol">single</span> (&lambda;&epsilon; . <span class="symbol">truish</span> &epsilon; &rarr; <span class="semfun">E</span>[E<sub>1</sub>] &rho;&kappa;,
+                                                        <span class="semfun">E</span>[E<sub>2</sub>] &rho;&kappa;))
+
+<span class="semfun">E</span>[<span class="code">(if </span>E<sub>0</sub> E<sub>1</sub><span class="code">)</span>] =
+    &lambda;&rho;&kappa; . <span class="semfun">E</span>[E<sub>0</sub>] &rho; (<span class="symbol">single</span> (&lambda; &epsilon; . <span class="symbol">truish</span> &epsilon;&rarr; <span class="semfun">E</span>[E<sub>1</sub>] &rho;&kappa;,
+                                                        <span class="symbol">send unspecified</span> &kappa;))
+
+Here and elsewhere, any expressed value other than <span class="symbol">undefined</span>
+may be used in place of <span class="symbol">unspecified</span>.
+
+<span class="semfun">E</span>[<span class="code">(set! </span>I E<span class="code">)</span>] =
+    &lambda;&rho;&kappa; . <span class="semfun">E</span>[E] &rho; (<span class="symbol">single</span>(&lambda;&epsilon; . <span class="symbol">assign</span>(<span class="symbol">lookup</span> &rho; I)
+                                                            &epsilon;
+                                                            (<span class="symbol">send unspecified</span> &kappa;)))
+
+<span class="semfun">E</span><sup>&lowast;</sup>[ ] = &lambda;&rho;&kappa; . &kappa; &lang; &rang;
+
+<span class="semfun">E</span><sup>&lowast;</sup>[E<sub>0</sub> E<sup>&lowast;</sup>] =
+    &lambda;&rho;&kappa; . <span class="semfun">E</span>[E<sub>0</sub>] &rho; (<span class="symbol">single</span>(&lambda;&epsilon;<sub>0</sub> . <span class="semfun">E</span><sup>&lowast;</sup>[E<sup>&lowast;</sup>] &rho; (&lambda;&epsilon;<sup>&lowast;</sup> . &kappa; (&lang;&epsilon;<sub>0</sub>&rang; &sect; &epsilon;<sup>&lowast;</sup>))))
+
+<span class="semfun">C</span>[ ] = &lambda;&rho;&theta; . &theta;
+
+<span class="semfun">C</span>[&Gamma;<sub>0</sub> &Gamma;<sup>&lowast;</sup>] = &lambda;&rho;&theta; . <span class="semfun">E</span>[&Gamma;<sub>0</sub>] &rho; (&lambda;&epsilon;<sup>&lowast;</sup> . <span class="semfun">C</span>[&Gamma;<sup>&lowast;</sup>] &rho;&theta;)
+</pre>
+
+<h3>7.2.4. Auxiliary functions</h3>
+
+<pre>
+<span class="symbol">lookup</span> : <span class="domain">U</span> &rarr; Ide &rarr; <span class="domain">L</span>
+<span class="symbol">lookup</span> = &lambda;&rho;I . &rho;I
+
+<span class="symbol">extends</span> : <span class="domain">U</span> &rarr; Ide<sup>&lowast;</sup> &rarr; <span class="domain">L<sup>&lowast;</sup></span> &rarr; <span class="domain">U</span>
+<span class="symbol">extends</span> =
+    &lambda;&rho;I<sup>&lowast;</sup>&alpha;<sup>&lowast;</sup> . #I<sup>&lowast;</sup> = 0 &rarr; &rho;,
+                        <span class="symbol">extends</span>(&rho;[(&alpha;<sup>&lowast;</sup> &darr; 1) / (I<sup>&lowast;</sup> &darr; 1)]) (I<sup>&lowast;</sup> &dagger; 1) (&alpha;<sup>&lowast;</sup> &dagger; 1)
+
+<span class="symbol">wrong</span> : <span class="domain">X</span> &rarr; <span class="domain">C</span>            [implementation-dependent]
+
+<span class="symbol">send</span> : <span class="domain">E</span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">send</span> = &lambda;&epsilon;&kappa; . &kappa; &lang;&epsilon;&rang;
+
+<span class="symbol">single</span> : (<span class="domain">E</span> &rarr; <span class="domain">C</span>) &rarr; <span class="domain">K</span>
+<span class="symbol">single</span> =
+    &lambda;&psi;&epsilon;<sup>&lowast;</sup> . #&epsilon;<sup>&lowast;</sup> = 1 &rarr; &psi;(&epsilon;<sup>&lowast;</sup> &darr; 1),
+                    <span class="symbol">wrong</span> &ldquo;wrong number of return values&rdquo;
+
+<span class="symbol">new</span> : <span class="domain">S</span> &rarr; (<span class="domain">L</span> + {<span class="symbol">error</span>})            [implementation-dependent]
+
+<span class="symbol">hold</span> : <span class="domain">L</span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">hold</span> = &lambda;&alpha;&kappa;&sigma; . <span class="symbol">send</span>(&sigma; &alpha; &darr; 1) &kappa; &sigma;
+
+<span class="symbol">assign</span> : <span class="domain">L</span> &rarr; <span class="domain">E</span> &rarr; <span class="domain">C</span> &rarr; <span class="domain">C</span>
+<span class="symbol">assign</span> = &lambda;&alpha;&epsilon;&theta;&sigma; . &theta;(<span class="symbol">update</span> &alpha; &epsilon; &sigma;)
+
+<span class="symbol">update</span> : <span class="domain">L</span> &rarr; <span class="domain">E</span> &rarr; <span class="domain">S</span> &rarr; <span class="domain">S</span>
+<span class="symbol">update</span> = &lambda;&alpha;&epsilon;&sigma; . &sigma;[&lang;&epsilon;, <span class="symbol">true</span>&rang; / &alpha;]
+
+<span class="symbol">tievals</span> : (<span class="domain">L<sup>&lowast;</sup></span> &rarr; <span class="domain">C</span>) &rarr; <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">C</span>
+<span class="symbol">tievals</span> =
+    &lambda;&psi;&epsilon;<sup>&lowast;</sup>&sigma; . #&epsilon;<sup>&lowast;</sup> = 0 &rarr; &psi; &lang; &rang; &sigma;,
+                    <span class="symbol">new</span> &sigma; &isin; <span class="domain">L</span> &rarr; <span class="symbol">tievals</span>(&lambda;&alpha;<sup>&lowast;</sup> . &psi;(&lang;<span class="symbol">new</span> &sigma; | <span class="domain">L</span>&rang; &sect; &alpha;<sup>&lowast;</sup>))
+                                                        (&epsilon;<sup>&lowast;</sup> &dagger; 1)
+                                                        (<span class="symbol">update</span> (<span class="symbol">new</span> &sigma; | <span class="domain">L</span>)(&epsilon;<sup>&lowast;</sup> &darr; 1) &sigma;),
+                        <span class="symbol">wrong</span> &ldquo;out of memory&rdquo; &sigma;
+
+<span class="symbol">tievalsrest</span> : (<span class="domain">L<sup>&lowast;</sup></span> &rarr; <span class="domain">C</span>) &rarr; <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">N</span> &rarr; <span class="domain">C</span>
+<span class="symbol">tievalsrest</span> =
+    &lambda;&psi;&epsilon;<sup>&lowast;</sup>&nu; . <span class="symbol">list</span>(<span class="symbol">dropfirst</span> &epsilon;<sup>&lowast;</sup> &nu;)
+                         (<span class="symbol">single</span> (&lambda;&epsilon; . <span class="symbol">tievals</span> &psi; ((<span class="symbol">takefirst</span> &epsilon;<sup>&lowast;</sup>&nu;) &sect; &lang;&epsilon;&rang;)))
+
+<span class="symbol">dropfirst</span> = &lambda;<span class="symbol">ln</span> . <span class="symbol">n</span> = 0 &rarr; <span class="symbol">l</span>, <span class="symbol">dropfirst</span> (<span class="symbol">l</span> &dagger; 1) (<span class="symbol">n</span> - 1)
+<span class="symbol">takefirst</span> = &lambda;<span class="symbol">ln</span> . <span class="symbol">n</span> = 0 &rarr; &lang; &rang;, &lang; <span class="symbol">l</span> &darr; 1 &rang; &sect; (<span class="symbol">takefirst</span> (<span class="symbol">l</span> &dagger; 1) (<span class="symbol">n</span> - 1))
+
+<span class="symbol">truish</span> : <span class="domain">E</span> &rarr; <span class="domain">T</span>
+<span class="symbol">truish</span> = &lambda;&epsilon; . &epsilon; = <span class="symbol">false</span> &rarr; <span class="symbol">false</span>, <span class="symbol">true</span>
+
+<span class="symbol">permute</span> : Exp<sup>&lowast;</sup> &rarr; Exp<sup>&lowast;</sup>            [implementation-dependent]
+<span class="symbol">unpermute</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">E<sup>&lowast;</sup></span>                [inverse of permute]
+
+<span class="symbol">applicate</span> : <span class="domain">E</span> &rarr; <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">applicate</span> =
+    &lambda;&epsilon;&epsilon;<sup>&lowast;</sup>&kappa; . &epsilon; &isin; <span class="domain">F</span> &rarr; (&epsilon; | <span class="domain">F</span> &darr; 2) &epsilon;<sup>&lowast;</sup>&kappa;, <span class="symbol">wrong</span> &ldquo;bad procedure&rdquo;
+
+<span class="symbol">onearg</span> : (<span class="domain">E</span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>) &rarr; (<span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>)
+<span class="symbol">onearg</span> =
+    &lambda;&zeta;&epsilon;<sup>&lowast;</sup>&kappa; . #&epsilon;<sup>&lowast;</sup> = 1 &rarr; &zeta; (&epsilon;<sup>&lowast;</sup> &darr; 1) &kappa;,
+                                <span class="symbol">wrong</span> &ldquo;wrong number of arguments&rdquo;
+
+<span class="symbol">twoarg</span> : (<span class="domain">E</span> &rarr; <span class="domain">E</span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>) &rarr; (<span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>)
+<span class="symbol">twoarg</span> =
+    &lambda;&zeta;&epsilon;<sup>&lowast;</sup>&kappa; . #&epsilon;<sup>&lowast;</sup> = 2 &rarr; &zeta; (&epsilon;<sup>&lowast;</sup> &darr; 1) (&epsilon;<sup>&lowast;</sup> &darr; 2) &kappa;,
+                                <span class="symbol">wrong</span> &ldquo;wrong number of arguments&rdquo;
+
+<span class="symbol">list</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">list</span> =
+    &lambda;&epsilon;<sup>&lowast;</sup>&kappa; . #&epsilon;<sup>&lowast;</sup> = 0 &rarr; <span class="symbol">send null</span> &kappa;,
+                    <span class="symbol">list</span>(&epsilon;<sup>&lowast;</sup> &dagger; 1)(<span class="symbol">single</span>(&lambda;&epsilon; . <span class="symbol">cons</span> &lang;&epsilon;<sup>&lowast;</sup> &dagger; 1, &epsilon;&rang; &kappa;))
+
+<span class="symbol">cons</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">cons</span> =
+    <span class="symbol">twoarg</span>(&lambda;&epsilon;<sub>1</sub>&epsilon;<sub>2</sub>&kappa;&sigma; . new &sigma; &isin; <span class="domain">L</span> &rarr; 
+                                        (&lambda;&sigma;&prime; . new &sigma;&prime; &isin; <span class="domain">L</span> &rarr;
+                                                        <span class="symbol">send</span>(&lang;<span class="symbol">new</span> &sigma; | <span class="domain">L</span>, <span class="symbol">new</span> &sigma;&prime; | <span class="domain">L</span>, <span class="symbol">true</span>&rang;
+                                                                    in <span class="domain">E</span>)
+                                                                &kappa;
+                                                                (<span class="symbol">update</span>(<span class="symbol">new</span> &sigma;&prime; | <span class="domain">L</span>) &epsilon;<sub>2</sub>&sigma;&prime;),
+                                                        <span class="symbol">wrong</span> &ldquo;out of memory&rdquo; &sigma;&prime;)
+                                         (<span class="symbol">update</span>(<span class="symbol">new</span> &sigma; | <span class="domain">L</span>) &epsilon;<sub>1</sub>&sigma;),
+                                         <span class="symbol">wrong</span> &ldquo;out of memory&rdquo; &sigma;)
+
+<span class="symbol">less</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">less</span> =
+    <span class="symbol">twoarg</span>(&lambda;&epsilon;<sub>1</sub>&epsilon;<sub>2</sub>&kappa; . (&epsilon;<sub>1</sub> &isin; <span class="domain">R</span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">R</span>) &rarr;
+                                    <span class="symbol">send</span>(&epsilon;<sub>1</sub> | <span class="domain">R</span> &lt; &epsilon;<sub>2</sub> | <span class="domain">R</span> &rarr; <span class="symbol">true</span>, <span class="symbol">false</span>) &kappa;,
+                                    <span class="symbol">wrong</span> &ldquo;non-numeric argument to <span class="code">&lt;</span>&rdquo;)
+
+<span class="symbol">add</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">add</span> =
+    <span class="symbol">twoarg</span>(&lambda;&epsilon;<sub>1</sub>&epsilon;<sub>2</sub>&kappa; . (&epsilon;<sub>1</sub> &isin; <span class="domain">R</span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">R</span>) &rarr; 
+                                    <span class="symbol">send</span>(&epsilon;<sub>1</sub> | <span class="domain">R</span> + &epsilon;<sub>2</sub> | <span class="domain">R</span>) in <span class="domain">E</span>) &kappa;,
+                                    <span class="symbol">wrong</span> &ldquo;non-numeric argument to <span class="code">+</span>&rdquo;)
+
+<span class="symbol">car</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">car</span> =
+    <span class="symbol">onearg</span>(&lambda;&epsilon;&kappa; . &epsilon; &isin; <span class="domain">E<sub>p</sub></span> &rarr; <span class="symbol">hold</span>(&epsilon; | <span class="domain">E<sub>p</sub></span> &darr; 1) &kappa;,
+                                <span class="symbol">wrong</span> &ldquo;non-pair argument to <span class="code">car</span>&rdquo;)
+
+<span class="symbol">cdr</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">cdr</span> = [similar to <span class="symbol">car</span>]
+
+<span class="symbol">setcar</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">setcar</span> =
+    <span class="symbol">twoarg</span>(&lambda;&epsilon;<sub>1</sub>&epsilon;<sub>2</sub>&kappa; . &epsilon;<sub>1</sub> &isin; <span class="domain">E<sub>p</sub></span> &rarr;
+                                  (&epsilon;<sub>1</sub> | <span class="domain">E<sub>p</sub></span> &darr; 3) &rarr; <span class="symbol">assign</span>(&epsilon;<sub>1</sub> | <span class="domain">E<sub>p</sub></span> &darr; 1)
+                                                                            &epsilon;<sub>2</sub>
+                                                                            (<span class="symbol">send unspecified</span> &kappa;),
+                                  <span class="symbol">wrong</span> &ldquo;immutable argument to <span class="code">set-car!</span>&rdquo;,
+                                  <span class="symbol">wrong</span> &ldquo;non-pair argument to <span class="code">set-car!</span>&rdquo;)
+
+<span class="symbol">eqv</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">eqv</span> =
+    <span class="symbol">twoarg</span>(&lambda;&epsilon;<sub>1</sub>&epsilon;<sub>2</sub>&kappa; . (&epsilon;<sub>1</sub> &isin; <span class="domain">M</span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">M</span>) &rarr;
+                                        <span class="symbol">send</span>(&epsilon;<sub>1</sub> | <span class="domain">M</span> = &epsilon;<sub>2</sub> | <span class="domain">M</span> &rarr; <span class="symbol">true</span>, <span class="symbol">false</span>) &kappa;,
+                                   (&epsilon;<sub>1</sub> &isin; <span class="domain">Q</span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">Q</span>) &rarr;
+                                        <span class="symbol">send</span>(&epsilon;<sub>1</sub> | <span class="domain">Q</span> = &epsilon;<sub>2</sub> | <span class="domain">Q</span> &rarr; <span class="symbol">true</span>, <span class="symbol">false</span>) &kappa;,
+                                   (&epsilon;<sub>1</sub> &isin; <span class="domain">H</span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">H</span>) &rarr;
+                                        <span class="symbol">send</span>(&epsilon;<sub>1</sub> | <span class="domain">H</span> = &epsilon;<sub>2</sub> | <span class="domain">H</span> &rarr; <span class="symbol">true</span>, <span class="symbol">false</span>) &kappa;,
+                                   (&epsilon;<sub>1</sub> &isin; <span class="domain">R</span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">R</span>) &rarr;
+                                        <span class="symbol">send</span>(&epsilon;<sub>1</sub> | <span class="domain">R</span> = &epsilon;<sub>2</sub> | <span class="domain">R</span> &rarr; <span class="symbol">true</span>, <span class="symbol">false</span>) &kappa;,
+                                   (&epsilon;<sub>1</sub> &isin; <span class="domain">E<sub>p</sub></span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">E<sub>p</sub></span>) &rarr;
+                                        <span class="symbol">send</span>((&lambda;p<sub>1</sub>p<sub>2</sub> . ((p<sub>1</sub> &darr; 1) = (p<sub>2</sub> &darr; 1) &and;
+                                                                   (p<sub>1</sub> &darr; 2) = (p<sub>2</sub> &darr; 2)) &rarr; <span class="symbol">true</span>,
+                                                                      <span class="symbol">false</span>)
+                                                  (&epsilon;<sub>1</sub> | <span class="domain">E<sub>p</sub></span>)
+                                                  (&epsilon;<sub>2</sub> | <span class="domain">E<sub>p</sub></span>))
+                                                &kappa;,
+                                   (&epsilon;<sub>1</sub> &isin; <span class="domain">E<sub>v</sub></span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">E<sub>v</sub></span>) &rarr; &hellip;,
+                                   (&epsilon;<sub>1</sub> &isin; <span class="domain">E<sub>s</sub></span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">E<sub>s</sub></span>) &rarr; &hellip;,
+                                   (&epsilon;<sub>1</sub> &isin; <span class="domain">F</span> &and; &epsilon;<sub>2</sub> &isin; <span class="domain">F</span>) &rarr;
+                                        <span class="symbol">send</span>((&epsilon;<sub>1</sub> | <span class="domain">F</span> &darr; 1) = (&epsilon;<sub>2</sub> | <span class="domain">F</span> &darr; 1) &rarr; <span class="symbol">true</span>, <span class="symbol">false</span>)
+                                                &kappa;,
+                                        <span class="symbol">send false</span> &kappa;)
+
+<span class="symbol">apply</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">apply</span> =
+    <span class="symbol">twoarg</span>(&lambda;&epsilon;<sub>1</sub>&epsilon;<sub>2</sub>&kappa; . &epsilon;<sub>1</sub> &isin; <span class="domain">F</span> &rarr; <span class="symbol">valueslist</span> &lang;&epsilon;<sub>2</sub>&rang; (&lambda;&epsilon;<sup>&lowast;</sup> . <span class="symbol">applicate</span> &epsilon;<sub>1</sub>&epsilon;<sup>&lowast;</sup>&kappa;),
+                                        <span class="symbol">wrong</span> &ldquo;bad procedure argument to <span class="code">apply</span>&rdquo;
+
+<span class="symbol">valueslist</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">valueslist</span> =
+    <span class="symbol">onearg</span>(&lambda;&epsilon;&kappa; . &epsilon; &isin; <span class="domain">E<sub>p</sub></span> &rarr;
+                                <span class="symbol">cdr</span> &lang;&epsilon;&rang;
+                                        (&lambda;&epsilon;<sup>&lowast;</sup> . <span class="symbol">valueslist</span>
+                                                    &epsilon;<sup>&lowast;</sup>
+                                                    (&lambda; &epsilon;<sup>&lowast;</sup> . <span class="symbol">car</span> &lang;&epsilon;&rang; (<span class="symbol">single</span>(&lambda;&epsilon; . &kappa;(&lang;&epsilon;&rang; &sect; &epsilon;<sup>&lowast;</sup>))))),
+                                &epsilon; = <span class="symbol">null</span> &rarr; &kappa; &lang; &rang;,
+                                    <span class="symbol">wrong</span> &ldquo;non-list argument to <span class="code">values-list</span>&rdquo;)
+
+<span class="symbol">cwcc</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>            [<span class="code">call-with-current-continuation</span>]
+<span class="symbol">cwcc</span> =
+    <span class="symbol">onearg</span>(&lambda;&epsilon;&kappa; . &epsilon; &isin; <span class="domain">F</span> &rarr;
+                                (&lambda; &sigma; . <span class="symbol">new</span> &sigma; &isin; <span class="domain">L</span> &rarr;
+                                                <span class="symbol">applicate</span> &epsilon;
+                                                                  &lang;&lang;<span class="symbol">new</span> &sigma; | <span class="domain">L</span>, &lambda;&epsilon;<sup>&lowast;</sup>&kappa;&prime; . &kappa;&epsilon;<sup>&lowast;</sup>&rang; in <span class="domain">E</span>&rang;
+                                                                  &kappa;
+                                                                  (<span class="symbol">update</span> (<span class="symbol">new</span> &sigma; | <span class="domain">L</span>)
+                                                                                  <span class="symbol">unspecified</span>
+                                                                                  &sigma;),
+                                                <span class="symbol">wrong</span> &ldquo;out of memory&rdquo; &sigma;),
+                                <span class="symbol">wrong</span> &ldquo;bad procedure argument&rdquo;)
+
+<span class="symbol">values</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>
+<span class="symbol">values</span> = &lambda;&epsilon;<sup>&lowast;</sup>&kappa; . &kappa;&epsilon;<sup>&lowast;</sup>
+
+<span class="symbol">cwv</span> : <span class="domain">E<sup>&lowast;</sup></span> &rarr; <span class="domain">K</span> &rarr; <span class="domain">C</span>            [<span class="code">call-with-values</span>]
+<span class="symbol">cwv</span> =
+    <span class="symbol">twoarg</span>(&lambda;&epsilon;<sub>1</sub>&epsilon;<sub>2</sub>&kappa; . <span class="symbol">applicate</span> &epsilon;<sub>1</sub> &lang; &rang; (&lambda;&epsilon;<sup>&lowast;</sup> . <span class="symbol">applicate</span> &epsilon;<sub>2</sub>&epsilon;<sup>&lowast;</sup>) &kappa;)
+
+</pre>
+
+</body>
+</html>
