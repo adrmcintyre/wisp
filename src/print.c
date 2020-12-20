@@ -71,12 +71,8 @@ void internal_generic_output(FILE* fp, CELL cell, int strict, int tab)
 		break;
 
 	case T_INT:
-		fprintf(fp, "%d", GET_INT(cell));
+		fprintf(fp, "%lld", GET_INT(cell));
 		break;
-
-    case T_BIGINT:
-        fprintf(fp, "%lld", GET_BIGINT(cell));
-        break;
 
 	case T_FLOAT:
 		fprintf(fp, "%f", GET_FLOAT(cell));

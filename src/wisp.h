@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
 //=========================================================================
 // FORWARD DECLARATIONS
@@ -25,8 +26,7 @@ typedef struct struct_LABEL_INFO {
 
 typedef unsigned char BOOL;
 typedef char CHAR;
-typedef int INT;
-typedef long long BIGINT;
+typedef long long INT;
 typedef double FLOAT;
 typedef unsigned int SLOT;
 
@@ -42,21 +42,6 @@ typedef struct struct_boxed_float {
 	HEADER h;
 	FLOAT value;
 } BOXED_FLOAT;
-
-typedef struct struct_boxed_bigint {
-    union {
-        HEADER h;
-        struct {
-            unsigned int h1 : 8;
-            BIGINT value : 56;
-        };
-        struct {
-            unsigned int h2 : 8;
-            int msb : 24;
-            unsigned int lsb;
-        };
-    };
-} BOXED_BIGINT;
 
 typedef struct struct_cons {
 	HEADER h;
@@ -210,7 +195,6 @@ typedef struct struct_db_result {
 union union_blob {
 	HEADER header;
 	BOXED_FLOAT v_float;
-    BOXED_BIGINT v_bigint;
 	STRING v_string;
 	NAME v_name;
 	KEYWORD v_keyword;
@@ -254,7 +238,6 @@ extern void die(char* msg) __attribute__((noreturn));
 extern CELL make_cons(CELL car, CELL cdr);
 extern CELL make_char(CHAR ch);
 extern CELL make_int(INT i);
-extern CELL make_bigint(BIGINT bigint);
 extern CELL make_float(FLOAT f);
 extern CELL make_func(char *name, void *entry, LABEL receiver, int min_args, int max_args);
 extern CELL make_string_raw(size_t k);
@@ -292,24 +275,20 @@ extern CELL internal_compile_eval(CELL sexpr);
 //=========================================================================
 // MACROS
 //=========================================================================
-typedef unsigned int LITERAL;
+typedef uintptr_t LITERAL;
 #define AS_LITERAL(cell) ((LITERAL)(cell))
-#define LITERAL_BIT       0x00000001
-#define LITERAL_TYPE_MASK 0x0000000e
+#define LITERAL_BIT       0x0000000000000001
+#define LITERAL_TYPE_MASK 0x000000000000000e
 #define LITERAL_TYPE_SHIFT 1
 #define LITERAL_VALUE_SHIFT 4
-#define LITERAL_INT_MASK  0xfffffff0
-#define LITERAL_CHAR_MASK 0x00000ff0
-#define LITERAL_BOOL_MASK 0x00000010
-#define LITERAL_SLOT_MASK 0xfffffff0
+#define LITERAL_INT_MASK  0xfffffffffffffff0
+#define LITERAL_CHAR_MASK 0x0000000000000ff0
+#define LITERAL_BOOL_MASK 0x0000000000000010
+#define LITERAL_SLOT_MASK 0xfffffffffffffff0
 
-#define WISP_INT_BITS 28
-#define WISP_MAX_INT  0x07ffffff
-#define WISP_MIN_INT -0x08000000
-// coincidentally this is exactly double the precision of an INT!
-#define WISP_BIGINT_BITS 56
-#define WISP_MAX_BIGINT ((1LL<<55) -1)
-#define WISP_MIN_BIGINT ((-1LL) << 55)
+#define WISP_INT_BITS 60
+#define WISP_MAX_INT  0x07ffffffffffffff
+#define WISP_MIN_INT -0x0800000000000000
 
 // no offset makes debugging easier
 #define POINTER_TYPE_OFFSET 0x00
@@ -317,6 +296,7 @@ typedef unsigned int LITERAL;
 // null is a slightly special case
 #define T_NULL             0x00  // the empty list
 
+// TODO - we should move to a NaN-boxed encoding instead
 // literal types
 #define T_VOID             0x01  // for functions that don't return a value
 #define T_UNDEFINED        0x02  // unbound names
@@ -340,17 +320,16 @@ typedef unsigned int LITERAL;
 #define T_RELOC            0x12
 #define T_REIFIED_CONTINUATION 0x13
 #define T_STACK_FRAME      0x14
-#define T_BIGINT           0x15
-#define T_PORT             0x16
-#define T_RECORD           0x17
-#define T_KEYWORD          0x18
-#define T_DB_CONNECTION    0x19
-#define T_DB_RESULT        0x1a
+#define T_PORT             0x15
+#define T_RECORD           0x16
+#define T_KEYWORD          0x17
+#define T_DB_CONNECTION    0x18
+#define T_DB_RESULT        0x19
 
 #define ALIGN_SIZE(v)      ((size_t)((v) + 3) & ~3)
 #define ALIGN_SIZE_DOWN(v) ((size_t)(v) & ~3)
-#define ALIGN_PTR(p)       ((void*)((unsigned)((p) + 3) & ~3))
-#define ALIGN_PTR_DOWN(v)  ((void*)((unsigned)(p) & ~3))
+#define ALIGN_PTR(p)       ((void*)((uintptr_t)((p) + 3) & ~3))
+#define ALIGN_PTR_DOWN(v)  ((void*)((uintptr_t)(p) & ~3))
 
 #define MAKE_CELL(v) ((CELL)(v))
 #define MAKE_POINTER(v) ((CELL)(v))
@@ -403,9 +382,6 @@ typedef unsigned int LITERAL;
 #define GET_SLOT(cell) ((SLOT)((AS_LITERAL(cell) & LITERAL_SLOT_MASK) >> LITERAL_VALUE_SHIFT))
 
 #define GET_FLOAT(cell)     ((cell)->v_float.value)
-#define GET_BIGINT(cell)    ((cell)->v_bigint.value)
-#define GET_BIGINT_MSB(cell) ((cell)->v_bigint.msb)
-#define GET_BIGINT_LSB(cell) ((cell)->v_bigint.lsb)
 #define GET_STRING(cell)    (&(cell)->v_string)
 #define GET_NAME(cell)      (&(cell)->v_name)
 #define GET_KEYWORD(cell)   (&(cell)->v_keyword)
@@ -430,7 +406,6 @@ typedef unsigned int LITERAL;
 #define SET_INT(cell, v)   ((cell)=MAKE_LITERAL(T_INT, v))
 #define SET_SLOT(cell, v)  ((cell)=MAKE_LITERAL(T_SLOT, v))
 #define SET_FLOAT(cell, v) ((cell)->v_float.value = v)
-#define SET_BIGINT(cell, v) ((cell)->v_bigint.value = v)
 
 #define HAS_LITERAL_TYPE(cell,t) \
 		(((AS_LITERAL(cell)) & (LITERAL_BIT | LITERAL_TYPE_MASK)) == \
@@ -448,7 +423,6 @@ typedef unsigned int LITERAL;
     (IS_POINTER(cell) && GET_POINTER_TYPE(cell) == t)
 
 #define FLOATP(cell)                (HAS_POINTER_TYPE((cell), T_FLOAT))
-#define BIGINTP(cell)               (HAS_POINTER_TYPE((cell), T_BIGINT))
 #define STRINGP(cell)               (HAS_POINTER_TYPE((cell), T_STRING))
 #define NAMEP(cell)                 (HAS_POINTER_TYPE((cell), T_NAME))
 #define KEYWORDP(cell)              (HAS_POINTER_TYPE((cell), T_KEYWORD))
@@ -467,7 +441,7 @@ typedef unsigned int LITERAL;
 #define DB_RESULTP(cell)            (HAS_POINTER_TYPE((cell), T_DB_RESULT))
 #define RECORDP(cell)               (HAS_POINTER_TYPE((cell), T_RECORD))
 
-#define NUMBERP(cell)  (INTP(cell) || FLOATP(cell) || BIGINTP(cell))
+#define NUMBERP(cell)  (INTP(cell) || FLOATP(cell))
 #define LAMBDAP(cell)  (CONSP(cell) && EQP(CAR(cell), V_LAMBDA))
 #define ATOMP(cell)    (!CONSP(cell))
 #define FALSEP(cell)   (BOOLP(cell) && GET_BOOL(cell) == 0)
@@ -488,16 +462,7 @@ typedef unsigned int LITERAL;
 #define make_slot(slot)  MAKE_LITERAL(T_SLOT, (slot))
 
 // handy numeric conversions
-#define make_integral(bi) \
-    (((bi) >= WISP_MIN_INT && (bi) <= WISP_MAX_INT) ? make_int((INT) (bi)) : make_bigint(bi))
-#define INTEGRALP(v) \
-    (INTP(v) || BIGINTP(v))
-#define GET_INTEGRAL_AS_BIGINT(v) \
-	(INTP(v) ? (BIGINT)GET_INT(v) : GET_BIGINT(v))
-#define GET_NUMBER_AS_FLOAT(v) \
-	(FLOATP(v) ?         GET_FLOAT(v)   : \
-     INTP(v)   ? (FLOAT) GET_INT(v)     : \
-                 (FLOAT) GET_BIGINT(v))
+#define GET_NUMBER_AS_FLOAT(v) (FLOATP(v) ? GET_FLOAT(v) : (FLOAT) GET_INT(v))
 
 #define FC    (GET_ENV(frame)->count)
 #define FV    (GET_ENV(frame)->cells)

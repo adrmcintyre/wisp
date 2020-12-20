@@ -14,13 +14,7 @@ CELL func_ ## fn(CELL frame) \
     for(argi = 0; argi < FC; ++argi) { \
         TYPEID targ = GET_TYPE(FV[argi]); \
         switch(t | targ << 8) { \
-        case T_INT    | T_BIGINT << 8: \
-            t = targ; \
-            break; \
         case T_INT    | T_INT    << 8: \
-        case T_BIGINT | T_INT    << 8: \
-        case T_BIGINT | T_BIGINT << 8: \
-            break; \
         default: \
             return make_exception("expects <integer> arguments"); \
         } \
@@ -41,20 +35,6 @@ CELL func_ ## fn(CELL frame) \
             result = make_int(i); \
         } \
         break; \
- \
-    /* args are a mixture of INT and BIGINT */ \
-    case T_BIGINT: \
-        { \
-            int argi = 0; \
-            const CELL arg = FV[argi++]; \
-            BIGINT bi = GET_INTEGRAL_AS_BIGINT(arg); \
-            while(argi < FC) { \
-                const CELL arg = FV[argi++]; \
-                bi = bi OPER GET_INTEGRAL_AS_BIGINT(arg); \
-            } \
-            result = make_integral(bi); \
-        } \
-        break; \
     } \
     return result; \
 }
@@ -65,37 +45,37 @@ GEN_BITWISE(bitwise_xor, ^);
 
 CELL func_bitwise_not(CELL frame)
 {
-    if (!INTEGRALP(FV0)) {
+    if (!INTP(FV0)) {
         return make_exception("expects <integer> argument");
     }
-    const BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
-    const BIGINT result = -1LL - n;
+    const INT n = GET_INT(FV0);
+    const INT result = ~n;
 
-    return make_integral(result);
+    return make_int(result);
 }
 
 CELL func_bitwise_merge(CELL frame)
 {
-    if (! (INTEGRALP(FV0) && INTEGRALP(FV1) && INTEGRALP(FV2)) ) {
+    if (! (INTP(FV0) && INTP(FV1) && INTP(FV2)) ) {
         return make_exception("expects <integer> arguments");
     }
-    const BIGINT mask = GET_INTEGRAL_AS_BIGINT(FV0);
-    const BIGINT n0 = GET_INTEGRAL_AS_BIGINT(FV1);
-    const BIGINT n1 = GET_INTEGRAL_AS_BIGINT(FV2);
-    const BIGINT result
+    const INT mask = GET_INT(FV0);
+    const INT n0 = GET_INT(FV1);
+    const INT n1 = GET_INT(FV2);
+    const INT result
         = (mask & n0)
         | (~mask & n1);
 
-    return make_integral(result);
+    return make_int(result);
 }
 
 CELL func_any_bits_setp(CELL frame)
 {
-    if (! (INTEGRALP(FV0) && INTEGRALP(FV1)) ) {
+    if (! (INTP(FV0) && INTP(FV1)) ) {
         return make_exception("expects <integer> arguments");
     }
-    const BIGINT j = GET_INTEGRAL_AS_BIGINT(FV0);
-    const BIGINT k = GET_INTEGRAL_AS_BIGINT(FV1);
+    const INT j = GET_INT(FV0);
+    const INT k = GET_INT(FV1);
 
     return MKBOOL(
         j & k
@@ -111,10 +91,10 @@ CELL func_any_bits_setp(CELL frame)
 // If 0, 0 is returned.
 CELL func_bit_count(CELL frame)
 {
-    if (! (INTEGRALP(FV0))) {
+    if (! (INTP(FV0))) {
         return make_exception("expects <integer> argument");
     }
-    BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
+    INT n = GET_INT(FV0);
     INT count = 0;
     if (n < 0) {
         for( ; n < -1; n >>= 1) {
@@ -129,7 +109,7 @@ CELL func_bit_count(CELL frame)
     return make_int(count);
 }
 
-static INT internal_integer_length(BIGINT n)
+static INT internal_integer_length(INT n)
 {
     INT count = 0;
     if (n < 0) {
@@ -149,10 +129,10 @@ static INT internal_integer_length(BIGINT n)
 // Returns the number of bits neccessary to represent n.
 CELL func_integer_length(CELL frame)
 {
-    if (! (INTEGRALP(FV0))) {
+    if (! (INTP(FV0))) {
         return make_exception("expects <integer> argument");
     }
-    BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
+    INT n = GET_INT(FV0);
     const INT count = internal_integer_length(n);
     return make_int(count);
 }
@@ -161,10 +141,10 @@ CELL func_integer_length(CELL frame)
 // This value is also the bit-index of the least-significant `1' bit in n.
 CELL func_first_set_bit(CELL frame)
 {
-    if (! (INTEGRALP(FV0))) {
+    if (! (INTP(FV0))) {
         return make_exception("expects <integer> argument");
     }
-    BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
+    INT n = GET_INT(FV0);
     INT count = 0;
     for( ; !(n & 1); n >>= 1) {
         ++count;
@@ -177,11 +157,11 @@ CELL func_first_set_bit(CELL frame)
 
 CELL func_bit_setp(CELL frame)
 {
-    if (! (INTP(FV0) && INTEGRALP(FV1)) ) {
+    if (! (INTP(FV0) && INTP(FV1)) ) {
         return make_exception("expects <integer> arguments");
     }
     const INT index = GET_INT(FV0);
-    const BIGINT n = GET_INTEGRAL_AS_BIGINT(FV1);
+    const INT n = GET_INT(FV1);
 
     return MKBOOL(
         n & 1LL << index
@@ -190,17 +170,17 @@ CELL func_bit_setp(CELL frame)
     
 CELL func_copy_bit(CELL frame)
 {
-    if (! (INTP(FV0) && INTEGRALP(FV1) && BOOLP(FV2)) ) {
+    if (! (INTP(FV0) && INTP(FV1) && BOOLP(FV2)) ) {
         return make_exception("expects <integer>, <integer>, <bool> arguments");
     }
     const INT index = GET_INT(FV0);
-    const BIGINT from = GET_INTEGRAL_AS_BIGINT(FV1);
-    const BIGINT bit = GET_BOOL(FV2);
-    const BIGINT result = 
+    const INT from = GET_INT(FV1);
+    const INT bit = GET_BOOL(FV2);
+    const INT result = 
         bit ? from | 1LL << index
             : from & ~(1LL << index);
 
-    return make_integral(result);
+    return make_int(result);
 }
 
 
@@ -208,55 +188,55 @@ CELL func_copy_bit(CELL frame)
 
 CELL func_bit_field(CELL frame)
 {
-    if ( !(INTEGRALP(FV0) && INTP(FV1) && INTP(FV2)) ) {
+    if ( !(INTP(FV0) && INTP(FV1) && INTP(FV2)) ) {
         return make_exception("expects <integer> arguments");
     }
-    const BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
+    const INT n = GET_INT(FV0);
     const INT start = GET_INT(FV1);
     const INT end = GET_INT(FV2);
-    const BIGINT result
+    const INT result
         = n >> start
         & ((1LL << (end-start)) - 1);
 
-    return make_integral(result);
+    return make_int(result);
 }
     
 CELL func_copy_bit_field(CELL frame)
 {
-    if ( !(INTEGRALP(FV0) && INTEGRALP(FV1) && INTP(FV2) && INTP(FV3)) ) {
+    if ( !(INTP(FV0) && INTP(FV1) && INTP(FV2) && INTP(FV3)) ) {
         return make_exception("expects <integer> arguments");
     }
-    const BIGINT to = GET_INTEGRAL_AS_BIGINT(FV0);
-    const BIGINT from = GET_INTEGRAL_AS_BIGINT(FV1);
+    const INT to = GET_INT(FV0);
+    const INT from = GET_INT(FV1);
     const INT start = GET_INT(FV2);
     const INT end = GET_INT(FV3);
-    const BIGINT result
+    const INT result
         = (to & ~((1LL << end) - (1LL << start)))
         | ((from & ((1LL << (end-start)) - 1)) << start);
 
-    return make_integral(result);
+    return make_int(result);
 }
     
 CELL func_arithmetic_shift(CELL frame)
 {
-    if (!INTEGRALP(FV0) && INTP(FV1)) {
+    if (!INTP(FV0) && INTP(FV1)) {
         return make_exception("expects <integer> arguments");
     }
-    const BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
+    const INT n = GET_INT(FV0);
     const INT count = GET_INT(FV1);
-    const BIGINT result = 
+    const INT result = 
         (count > 0) ? n << count
                     : n >> -count;
 
-    return make_integral(result);
+    return make_int(result);
 }
 
 CELL func_rotate_bit_field(CELL frame)
 {
-    if ( !(INTEGRALP(FV0) && INTP(FV1) && INTP(FV2) && INTP(FV3)) ) {
+    if ( !(INTP(FV0) && INTP(FV1) && INTP(FV2) && INTP(FV3)) ) {
         return make_exception("expects <integer> arguments");
     }
-    const BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
+    const INT n = GET_INT(FV0);
     INT count = GET_INT(FV1);
     const INT start = GET_INT(FV2);
     const INT end = GET_INT(FV3);
@@ -269,38 +249,38 @@ CELL func_rotate_bit_field(CELL frame)
     }
 
     // FIXME - I'm sure this could be simplified to use fewer shifts
-    BIGINT seg = (n >> start) & ((1LL << (end-start)) - 1);
+    INT seg = (n >> start) & ((1LL << (end-start)) - 1);
     seg = ((seg << count) & ((1LL << (end-start)) - 1))
         | ((seg >> (end-start - count)));
-    const BIGINT result
+    const INT result
         = (n & ~((1LL << end) - (1LL << start)))
         | (seg << start);
 
-    return make_integral(result);
+    return make_int(result);
 }
 
 CELL func_reverse_bit_field(CELL frame)
 {
-    if ( !(INTEGRALP(FV0) && INTP(FV1) && INTP(FV2)) ) {
+    if ( !(INTP(FV0) && INTP(FV1) && INTP(FV2)) ) {
         return make_exception("expects <integer> arguments");
     }
-    const BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
+    const INT n = GET_INT(FV0);
     const INT start = GET_INT(FV1);
     const INT end = GET_INT(FV2);
 
-    BIGINT seg = (n >> start) & ((1LL << (end-start)) - 1);
-    BIGINT newseg = 0;
+    INT seg = (n >> start) & ((1LL << (end-start)) - 1);
+    INT newseg = 0;
     INT i;
     for(i = start; i < end; ++i) {
         newseg = (newseg << 1) | (seg & 1);
         seg >>= 1;
     }
 
-    const BIGINT result 
+    const INT result 
         = (n & ((1LL << end) - (1LL << start)))
         | (newseg << start);
 
-    return make_integral(result);
+    return make_int(result);
 }
 
 
@@ -310,10 +290,10 @@ CELL func_reverse_bit_field(CELL frame)
 // #t is coded for each 1; #f for 0. The len argument defaults to (integer-length k).
 CELL func_integer2list(CELL frame)
 {
-    if ( !(INTEGRALP(FV0) && (FC==1 || INTP(FV1)))) {
+    if ( !(INTP(FV0) && (FC==1 || INTP(FV1)))) {
         return make_exception("expects <integer> arguments");
     }
-    BIGINT n = GET_INTEGRAL_AS_BIGINT(FV0);
+    INT n = GET_INT(FV0);
     INT len = (FC==2) ? GET_INT(FV1) : internal_integer_length(n);
 
     CELL res = V_NULL;
@@ -329,7 +309,7 @@ CELL func_integer2list(CELL frame)
 CELL func_list2integer(CELL frame)
 {
     CELL lis = FV0;
-    BIGINT n = 0;
+    INT n = 0;
     for(; CONSP(lis); lis = CDR(lis)) {
         const CELL bit = CAR(lis);
         if (!BOOLP(bit)) {
@@ -337,13 +317,13 @@ CELL func_list2integer(CELL frame)
         }
         n = (n << 1) | TRUEP(bit);
     }
-    return make_integral(n);
+    return make_int(n);
 }
 
 // Returns the integer coded by the bool1 ... arguments.
 CELL func_booleans2integer(CELL frame)
 {
-    BIGINT n = 0;
+    INT n = 0;
     int argi;
     for(argi = 0; argi < FC; ++argi) {
         const CELL bit = FV[argi];
@@ -352,7 +332,7 @@ CELL func_booleans2integer(CELL frame)
         }
         n = (n << 1) | TRUEP(bit);
     }
-    return make_integral(n);
+    return make_int(n);
 }
 
 void bitwise_register_symbols()

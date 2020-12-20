@@ -171,7 +171,7 @@ CELL func_mysql_query(CELL frame)
 	}
 	else {
 		my_ulonglong num_rows = mysql_affected_rows(mysql);
-		return make_integral((BIGINT) num_rows);
+		return make_int(num_rows);
 	}
 }
 

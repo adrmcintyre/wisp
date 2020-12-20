@@ -239,8 +239,8 @@ CELL internal_read_number(RCHAN* rchan, int base, int ch, TYPEID want_type)
 		return make_float((FLOAT)strtod(token, 0));
 	}
 	else {
-        BIGINT bi = strtoll(token, 0, base ? base : 10);
-        return make_integral(bi);
+        INT i = strtoll(token, 0, base ? base : 10);
+        return make_int(i);
 	}
 }
 

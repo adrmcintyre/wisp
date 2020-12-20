@@ -186,7 +186,6 @@ size_t get_size(CELL v)
 	}
 
 	switch(GET_POINTER_TYPE(v)) {
-	case T_BIGINT:             		return sizeof(BOXED_BIGINT);
 	case T_FLOAT:             		return sizeof(BOXED_FLOAT);
 	case T_CONS:              		return sizeof(CONS);
 	case T_FUNC:              		return sizeof(FUNC);
@@ -222,7 +221,6 @@ const char* get_typename(TYPEID type)
 	case T_BOOL:                 return "BOOL";
 	case T_CHAR:                 return "CHAR";
 	case T_INT:                  return "INT";
-	case T_BIGINT:               return "BIGINT";
 	case T_SLOT:                 return "SLOT";
 	case T_FLOAT:                return "FLOAT";
 	case T_STRING:               return "STRING";

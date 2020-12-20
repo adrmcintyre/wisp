@@ -66,7 +66,7 @@ CELL func_stack_frame_ref(CELL frame)
     }
     const unsigned char bitmask = label_info[p->pc].bitmask;
     const CELL v = p->cells[i];
-    return (bitmask & (1 << i)) ? v : make_integral((INT) v);
+    return (bitmask & (1 << i)) ? v : make_int((INT) v);
 }
 
 void stack_register_symbols()

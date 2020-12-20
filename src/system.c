@@ -9,7 +9,7 @@ CELL func_system(CELL frame)
 		return make_exception("expects a string");
 	}
     int exit_status = system(GET_STRING(string)->data);
-    return make_integral(exit_status);
+    return make_int(exit_status);
 }
 
 void system_register_symbols()

@@ -219,13 +219,6 @@ CELL make_db_result(void* handle)
     return cell;
 }
 
-CELL make_bigint(BIGINT bi)
-{
-    CELL cell = gc_alloc(BIGINT);
-    SET_BIGINT(cell, bi);
-    return cell;
-}
-
 static CELL make_raw_name_counted(size_t len)
 {
 	CELL cell = gc_alloc_extra(NAME, len);

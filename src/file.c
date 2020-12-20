@@ -20,14 +20,14 @@ CELL func_file_stat(CELL frame)
     }
     CELL res = make_vector_uninited(8);
     CELL* data = GET_VECTOR(res)->data;
-    data[0] = make_integral(sb.st_mode);
-    data[1] = make_integral(sb.st_nlink);
-    data[2] = make_integral(sb.st_uid);
-    data[3] = make_integral(sb.st_gid);
-    data[4] = make_integral(sb.st_atime);
-    data[5] = make_integral(sb.st_mtime);
-    data[6] = make_integral(sb.st_ctime);
-    data[7] = make_integral(sb.st_size);
+    data[0] = make_int(sb.st_mode);
+    data[1] = make_int(sb.st_nlink);
+    data[2] = make_int(sb.st_uid);
+    data[3] = make_int(sb.st_gid);
+    data[4] = make_int(sb.st_atime);
+    data[5] = make_int(sb.st_mtime);
+    data[6] = make_int(sb.st_ctime);
+    data[7] = make_int(sb.st_size);
     return res;
 }
 

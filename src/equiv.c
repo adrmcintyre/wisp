@@ -20,9 +20,6 @@ int internal_eqvp(CELL obj1, CELL obj2)
 	case T_FLOAT:
 		return GET_FLOAT(obj1) == GET_FLOAT(obj2);
 
-	case T_BIGINT:
-		return GET_BIGINT(obj1) == GET_BIGINT(obj2);
-
 	default:
 		return 0;
 	}
@@ -101,9 +98,6 @@ int internal_equalp(CELL obj1, CELL obj2)
 
         case T_FLOAT:
             return GET_FLOAT(obj1) == GET_FLOAT(obj2);
-
-        case T_BIGINT:
-            return GET_BIGINT(obj1) == GET_BIGINT(obj2);
 
         default:
             return 0;

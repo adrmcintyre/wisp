@@ -19,17 +19,17 @@ CELL func_realp(CELL frame)
 
 CELL func_rationalp(CELL frame)
 {
-	return MKBOOL(INTP(FV0) || BIGINTP(FV0));
+	return MKBOOL(INTP(FV0));
 }
 
 CELL func_integerp(CELL frame)
 {
-	return MKBOOL(INTP(FV0) || BIGINTP(FV0));
+	return MKBOOL(INTP(FV0));
 }
 
 CELL func_exactp(CELL frame)
 {
-	return MKBOOL(INTP(FV0) || BIGINTP(FV0));
+	return MKBOOL(INTP(FV0));
 }
 
 CELL func_inexactp(CELL frame)
@@ -42,8 +42,6 @@ CELL func_negativep(CELL frame)
     switch(GET_TYPE(FV0)) {
     case T_INT:
 		return MKBOOL(GET_INT(FV0) < 0);
-    case T_BIGINT:
-        return MKBOOL(GET_BIGINT(FV0) < 0);
     case T_FLOAT:
 		return MKBOOL(GET_FLOAT(FV0) < 0);
 	default:
@@ -56,8 +54,6 @@ CELL func_positivep(CELL frame)
     switch(GET_TYPE(FV0)) {
     case T_INT:
 		return MKBOOL(GET_INT(FV0) > 0);
-    case T_BIGINT:
-        return MKBOOL(GET_BIGINT_MSB(FV0) > 0);
     case T_FLOAT:
 		return MKBOOL(GET_FLOAT(FV0) > 0);
 	default:
@@ -70,8 +66,6 @@ CELL func_oddp(CELL frame)
     switch(GET_TYPE(FV0)) {
     case T_INT:
 		return MKBOOL(GET_INT(FV0) & 1);
-	case T_BIGINT:
-        return MKBOOL(GET_BIGINT_LSB(FV0) & 1);
 	default:
 		return make_exception("expects <integer> argument");
 	}
@@ -82,8 +76,6 @@ CELL func_evenp(CELL frame)
     switch(GET_TYPE(FV0)) {
     case T_INT:
 		return MKBOOL(!(GET_INT(FV0) & 1));
-    case T_BIGINT:
-        return MKBOOL(!(GET_BIGINT_LSB(FV0) & 1));
 	default:
 		return make_exception("expects <integer> argument");
 	}
@@ -93,10 +85,9 @@ CELL func_abs(CELL frame)
 {
     switch(GET_TYPE(FV0)) {
     case T_INT:
-    case T_BIGINT:
         {
-            const BIGINT bi = GET_INTEGRAL_AS_BIGINT(FV0);
-            return (bi < 0) ? make_integral(-bi) : FV0;
+            const INT i = GET_INT(FV0);
+            return (i < 0) ? make_int(-i) : FV0;
         }
 	case T_FLOAT:
         {
@@ -110,16 +101,16 @@ CELL func_abs(CELL frame)
 
 CELL func_quotient(CELL frame)
 {
-	if (! (INTEGRALP(FV0) && INTEGRALP(FV1)) ) {
+	if (! (INTP(FV0) && INTP(FV1)) ) {
 		return make_exception("expects <integer> arguments");
 	}
-	const BIGINT a = GET_INTEGRAL_AS_BIGINT(FV0);
-	const BIGINT b = GET_INTEGRAL_AS_BIGINT(FV1);
+	const INT a = GET_INT(FV0);
+	const INT b = GET_INT(FV1);
 	if (b == 0) {
 		return make_exception("division by zero");
 	}
-    const BIGINT r = a / b;
-    return make_integral(r);
+    const INT r = a / b;
+    return make_int(r);
 }
 
 #if (-1) % 2 != -1
@@ -128,33 +119,33 @@ CELL func_quotient(CELL frame)
 
 CELL func_remainder(CELL frame)
 {
-	if (! (INTEGRALP(FV0) && INTEGRALP(FV1)) ) {
+	if (! (INTP(FV0) && INTP(FV1)) ) {
 		return make_exception("expects <integer> arguments");
 	}
-	const BIGINT a = GET_INTEGRAL_AS_BIGINT(FV0);
-	const BIGINT b = GET_INTEGRAL_AS_BIGINT(FV1);
+	const INT a = GET_INT(FV0);
+	const INT b = GET_INT(FV1);
 	if (b == 0) {
 		return make_exception("division by zero");
 	}
-    const BIGINT r = a % b;
-    return make_integral(r);
+    const INT r = a % b;
+    return make_int(r);
 }
 
 CELL func_modulo(CELL frame)
 {
-	if (! (INTEGRALP(FV0) && INTEGRALP(FV1)) ) {
+	if (! (INTP(FV0) && INTP(FV1)) ) {
 		return make_exception("expects <integer> arguments");
 	}
-	const BIGINT a = GET_INTEGRAL_AS_BIGINT(FV0);
-	const BIGINT b = GET_INTEGRAL_AS_BIGINT(FV1);
+	const INT a = GET_INT(FV0);
+	const INT b = GET_INT(FV1);
 	if (b == 0) {
 		return make_exception("division by zero");
 	}
-	BIGINT r = a % b;
+	INT r = a % b;
 	if ((a >= 0) != (b >= 0) && r != 0) {
 		r += b;
 	}
-    return make_integral(r);
+    return make_int(r);
 }
 
 #define GEN_FLOAT_FUNC1(fn, OPER) \
@@ -197,17 +188,17 @@ CELL func_expt(CELL frame)
     if (! (NUMBERP(FV0) && NUMBERP(FV1)) ) {
         return make_exception("expects <number> arguments");
     }
-    if (FLOATP(FV0) || FLOATP(FV1) || GET_INTEGRAL_AS_BIGINT(FV1) < 0) {
+    if (FLOATP(FV0) || FLOATP(FV1) || GET_INT(FV1) < 0) {
         return make_float(pow(GET_NUMBER_AS_FLOAT(FV0), GET_NUMBER_AS_FLOAT(FV1)));
     }
-    BIGINT p = GET_INTEGRAL_AS_BIGINT(FV0);
-    BIGINT e = GET_INTEGRAL_AS_BIGINT(FV1);
-    BIGINT r = 1;
+    INT p = GET_INT(FV0);
+    INT e = GET_INT(FV1);
+    INT r = 1;
     for( ; e; e >>= 1) {
         if (e & 1) r *= p;
         p *= p;
     }
-    return make_integral(r);
+    return make_int(r);
 }
 
 CELL func_zerop(CELL frame)
@@ -215,8 +206,6 @@ CELL func_zerop(CELL frame)
     switch(GET_TYPE(FV0)) {
     case T_INT:
         return MKBOOL(GET_INT(FV0) == 0);
-	case T_BIGINT:
-        return MKBOOL(GET_BIGINT(FV0) == 0);
 	case T_FLOAT:
 		return MKBOOL(GET_FLOAT(FV0) == 0);
     default:
@@ -253,8 +242,8 @@ CELL func_arith_ ## fn(CELL frame) \
             } \
         } \
         else { \
-            const BIGINT a = GET_INTEGRAL_AS_BIGINT(lhs); \
-            const BIGINT b = GET_INTEGRAL_AS_BIGINT(rhs); \
+            const INT a = GET_INT(lhs); \
+            const INT b = GET_INT(rhs); \
             if (! (a OPER b)) { \
                 return V_FALSE; \
             } \
@@ -279,16 +268,11 @@ CELL func_ ## fn(CELL frame) \
     for(argi = 0; argi < FC; ++argi) { \
         TYPEID targ = GET_TYPE(FV[argi]); \
         switch(t | targ << 8) { \
-        case T_INT    | T_BIGINT << 8: \
         case T_INT    | T_FLOAT  << 8: \
-        case T_BIGINT | T_FLOAT  << 8: \
             t = targ; \
             break; \
         case T_INT    | T_INT    << 8: \
-        case T_BIGINT | T_INT    << 8: \
-        case T_BIGINT | T_BIGINT << 8: \
         case T_FLOAT  | T_INT    << 8: \
-        case T_FLOAT  | T_BIGINT << 8: \
         case T_FLOAT  | T_FLOAT  << 8: \
             break; \
         default: \
@@ -301,38 +285,21 @@ CELL func_ ## fn(CELL frame) \
     /* all args are INT */ \
     case T_INT: \
         { \
-            BIGINT bi = init; \
+            INT i = init; \
             int argi = 0; \
             if (FC > 1) { \
                 const CELL arg = FV[argi++]; \
-                bi = GET_INT(arg); \
+                i = GET_INT(arg); \
             } \
             while(argi < FC) { \
                 const CELL arg = FV[argi++]; \
-                bi = bi OPER (BIGINT)GET_INT(arg); \
+                i = i OPER GET_INT(arg); \
             } \
-            result = make_integral(bi); \
+            result = make_int(i); \
         } \
         break; \
  \
-    /* args are a mixture of INT and BIGINT */ \
-    case T_BIGINT: \
-        { \
-            BIGINT bi = init; \
-            int argi = 0; \
-            if (FC > 1) { \
-                const CELL arg = FV[argi++]; \
-                bi = GET_INTEGRAL_AS_BIGINT(arg); \
-            } \
-            while(argi < FC) { \
-                const CELL arg = FV[argi++]; \
-                bi = bi OPER GET_INTEGRAL_AS_BIGINT(arg); \
-            } \
-            result = make_integral(bi); \
-        } \
-        break; \
- \
-    /* args are a mixture of INT, BIGINT and FLOAT */ \
+    /* args are a mixture of INT and FLOAT */ \
     case T_FLOAT: \
         { \
             FLOAT f = init; \
@@ -341,7 +308,6 @@ CELL func_ ## fn(CELL frame) \
                 const CELL arg = FV[argi++]; \
                 switch(GET_TYPE(arg)) { \
                 case T_INT:    f = GET_INT(arg);    break; \
-                case T_BIGINT: f = GET_BIGINT(arg); break; \
                 case T_FLOAT:  f = GET_FLOAT(arg);  break; \
                 } \
             } \
@@ -349,7 +315,6 @@ CELL func_ ## fn(CELL frame) \
                 const CELL arg = FV[argi++]; \
                 switch(GET_TYPE(arg)) { \
                 case T_INT:    f = f OPER GET_INT(arg);    break; \
-                case T_BIGINT: f = f OPER GET_BIGINT(arg); break; \
                 case T_FLOAT:  f = f OPER GET_FLOAT(arg);  break; \
                 } \
             } \
@@ -382,8 +347,8 @@ CELL func_ ## fn(CELL frame) \
 	CELL res = FV[argi++]; \
 	while(argi < FC) { \
 		CELL cf = FV[argi++]; \
-		if (INTEGRALP(res) && INTEGRALP(cf)) { \
-			if (GET_INTEGRAL_AS_BIGINT(cf) OPER GET_INTEGRAL_AS_BIGINT(res)) { \
+		if (INTP(res) && INTP(cf)) { \
+			if (GET_INT(cf) OPER GET_INT(res)) { \
 				res = cf; \
 			} \
 		} \
@@ -395,7 +360,7 @@ CELL func_ ## fn(CELL frame) \
 			} \
 		} \
 	} \
-	return (inexact && INTEGRALP(res)) ? make_float(GET_INTEGRAL_AS_BIGINT(res)) : res; \
+	return (inexact && INTP(res)) ? make_float(GET_INT(res)) : res; \
 }
 
 GEN_MIN_MAX(min, <);
@@ -419,23 +384,6 @@ CELL func_number2string(CELL frame)
     case T_INT:
         {
             INT a = GET_INT(FV0);
-            char* fmt;
-            switch(base) {
-            case 8:  fmt = a < 0 ? "-%o" : "%o"; a = abs(a); break;
-            case 10: fmt = "%d"; break;
-            case 16: fmt = a < 0 ? "-%x" : "%x"; a = abs(a); break;
-            case 2:
-            default:
-                return make_exception("unsupported base");
-            }
-            
-            n = snprintf(buf, sizeof(buf), fmt, a);
-        }
-        break;
-
-    case T_BIGINT:
-        {
-            BIGINT a = GET_BIGINT(FV0);
             char* fmt;
             switch(base) {
             case 8:  fmt = a < 0 ? "-%llo" : "%llo"; a = llabs(a); break;
