@@ -249,6 +249,7 @@ extern CELL make_name_counted(char *name, size_t len);
 extern CELL make_name_from_string(CELL string);
 extern CELL make_name_gensym();
 extern CELL make_keyword_counted(char* keyword, size_t len);
+extern CELL make_keyword_from_string(CELL string);
 extern CELL make_slot(SLOT slot);
 extern CELL make_exception(char *fmt, ...);
 extern CELL make_vector_uninited(size_t len);
