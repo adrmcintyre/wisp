@@ -1,9 +1,0 @@
-2007-03-19
-* now tail call optimised (using a trampoline) - wow that was amazingly easy!
-
-2007-03-23
-* argument counts retained during compilation to avoid expensive calls to proper_list_length at eval time
-
-2007-07-01
-core functions now take a 'CELL frame' argument instead of argc/argv pair
-garbage collector finally seems safe to use

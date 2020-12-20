@@ -1,5 +1,34 @@
 bin_PROGRAMS = wisp
-wisp_SOURCES = arith.c bitwise.c bool.c char.c compile.c control.c env.c equiv.c eval.c except.c file.c gc.c heap.c io.c keyword.c list.c main.c mysql.c print.c quasiquote.c read.c record.c signals.c stack.c str.c symbol.c system.c trace.c vector.c vm.c
 
-wisp_LDADD =				\
-	@READLINE_LIBS@	
+wisp_SOURCES = main.c wisp.h
+wisp_SOURCES += arith.c arith.h
+wisp_SOURCES += bitwise.c bitwise.h
+wisp_SOURCES += bool.c bool.h
+wisp_SOURCES += char.c char.h
+wisp_SOURCES += compile.c compile.h
+wisp_SOURCES += control.c control.h
+wisp_SOURCES += env.c env.h
+wisp_SOURCES += equiv.c equiv.h
+wisp_SOURCES += eval.c eval.h
+wisp_SOURCES += except.c except.h
+wisp_SOURCES += file.c file.h
+wisp_SOURCES += gc.c gc.h
+wisp_SOURCES += heap.c heap.h
+wisp_SOURCES += io.c io.h
+wisp_SOURCES += keyword.c keyword.h
+wisp_SOURCES += list.c list.h
+wisp_SOURCES += mysql.c mysql.h
+wisp_SOURCES += print.c print.h
+wisp_SOURCES += quasiquote.c quasiquote.h
+wisp_SOURCES += read.c read.h
+wisp_SOURCES += record.c record.h
+wisp_SOURCES += signals.c signals.h
+wisp_SOURCES += stack.c stack.h
+wisp_SOURCES += str.c str.h
+wisp_SOURCES += symbol.c symbol.h
+wisp_SOURCES += system.c system.h
+wisp_SOURCES += trace.c trace.h
+wisp_SOURCES += vector.c vector.h
+wisp_SOURCES += vm.c vm.h
+
+wisp_LDADD = @READLINE_LIBS@
