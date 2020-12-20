@@ -13,7 +13,7 @@
 
 static char* prog;
 static int opt_load_libs = 1;
-static unsigned long opt_heap_size = 16 * 1024 * 1024;
+static size_t opt_heap_size = 16 * 1024 * 1024;
 
 extern int opt_case_sensitive;
 
@@ -25,9 +25,9 @@ void die(char* msg)
 	exit(1);
 }
 
-int proper_list_length(CELL list)
+size_t proper_list_length(CELL list)
 {
-	int len = 0;
+	size_t len = 0;
 	for( ; CONSP(list); list = CDR(list)) { ++len; }
 	return NULLP(list) ? len : -1;
 }
@@ -83,6 +83,7 @@ extern void stack_register_symbols();
 extern void signals_register_symbols();
 extern void system_register_symbols();
 extern void vm_register_symbols();
+extern void keyword_register_symbols();
 
 extern void eval_exit();
 
@@ -207,6 +208,7 @@ void parse_options(int argc, char* argv[])
 				exit(1);
 			}
 
+            // TODO use strtoumax and check against SIZE_MAX
 			opt_heap_size = strtoul(optarg, &endptr, 10);
 
 			switch(*endptr) {
@@ -219,6 +221,11 @@ void parse_options(int argc, char* argv[])
 			case 'M':
 				++endptr;
 				opt_heap_size *= 1024 * 1024;
+				break;
+			case 'g':
+			case 'G':
+				++endptr;
+				opt_heap_size *= 1024 * 1024 * 1024;
 				break;
 			}
 

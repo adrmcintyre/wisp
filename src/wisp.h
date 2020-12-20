@@ -265,7 +265,7 @@ extern CELL make_db_connection(void* handle);
 extern CELL make_db_result(void* handle);
 extern CELL register_func(char* name, FUNC_ENTRY entry, int min_args, int max_args);
 extern CELL register_inline(char* name, LABEL receiver, int min_args, int max_args);
-extern int proper_list_length(CELL list);
+extern size_t proper_list_length(CELL list);
 
 // from eval.c
 extern CELL internal_compile(CELL sexpr);

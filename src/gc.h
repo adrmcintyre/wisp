@@ -4,7 +4,7 @@ extern int is_valid_heap_pointer(CELL p);
 extern int opt_heap_check_rand;
 extern int opt_trace_heap;
 
-void gc_init(unsigned extent);
+void gc_init(size_t extent);
 
 void gc_check_headroom();
 
@@ -35,16 +35,16 @@ void gc_collect();
 typedef struct struct_gc_frame {
 	struct struct_gc_frame *link;
 	size_t len;
-	unsigned int depth;
+	size_t depth;
 #if defined(DEBUG_HEAP)
 	const char* caller;
 #endif
 	CELL* data[0];
 } GC_FRAME;
-typedef unsigned GC_FRAME_FIELD;
+typedef uintptr_t GC_FRAME_FIELD;
 
 extern GC_FRAME* gc_curr_frame;
-extern unsigned int gc_frame_depth;
+extern size_t gc_frame_depth;
 
 void gc_root_static_impl(CELL* v, const char* name);
 

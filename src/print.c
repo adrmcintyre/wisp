@@ -172,7 +172,7 @@ void internal_generic_output(FILE* fp, CELL cell, int strict, int tab)
 		break;
 
 	case T_COMPILED_LAMBDA:
-		fprintf(fp, "#<compiled-lambda:0x%08x>", AS_LITERAL(cell));
+		fprintf(fp, "#<compiled-lambda:%p>", (void*)AS_LITERAL(cell));
 		break;
 		{
 			if (tab) ++tab;
@@ -192,7 +192,7 @@ void internal_generic_output(FILE* fp, CELL cell, int strict, int tab)
 		break;
 		
 	case T_CLOSURE:
-		fprintf(fp, "#<closure:0x%08x>", AS_LITERAL(cell));
+		fprintf(fp, "#<closure:%p>", (void*)AS_LITERAL(cell));
 		break;
 		{
 			if (tab) ++tab;
@@ -214,7 +214,7 @@ void internal_generic_output(FILE* fp, CELL cell, int strict, int tab)
 		break;
 
 	case T_REIFIED_CONTINUATION:
-		fprintf(fp, "#<continuation:0x%08x>", (int)GET_REIFIED_CONTINUATION(cell)->cont);
+		fprintf(fp, "#<continuation:%p>", (void*)GET_REIFIED_CONTINUATION(cell)->cont);
 		break;
 
 	case T_STACK_FRAME:
@@ -224,7 +224,7 @@ void internal_generic_output(FILE* fp, CELL cell, int strict, int tab)
 			int i;
 			for(i = 0; i < p->len; ++i) {
 				if (i) fputc(' ', fp);
-				fprintf(fp, "0x%08x", (int)p->cells[i]);
+				fprintf(fp, "%p", (void*)p->cells[i]);
 			}
 			fputs("]>", fp);
 		}
@@ -235,7 +235,7 @@ void internal_generic_output(FILE* fp, CELL cell, int strict, int tab)
 		break;
 
 	case T_RELOC:
-		fprintf(fp, "#<reloc:0x%08x>", (int)GET_RELOC(cell));
+		fprintf(fp, "#<reloc:%p>", (void*)GET_RELOC(cell));
 		break;
 
     case T_PORT:
@@ -255,10 +255,10 @@ void internal_generic_output(FILE* fp, CELL cell, int strict, int tab)
         break;
 
 	default:
-		fprintf(fp, "#<%s-%02x:%08x>",
+		fprintf(fp, "#<%s-%02x:%p>",
 			IS_LITERAL(cell) ? "literal" : "pointer",
 			GET_TYPE(cell),
-			AS_LITERAL(cell)
+			(void*)AS_LITERAL(cell)
 		);
 		break;
 	}

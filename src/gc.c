@@ -87,10 +87,10 @@ static double mach_time_to_secs(uint64_t t)
 
 typedef struct {
 	unsigned num_collections;
-	unsigned bytes_total;
-	unsigned bytes_free;
-	unsigned bytes_used;
-	unsigned bytes_last_collected;
+	size_t bytes_total;
+	size_t bytes_free;
+	size_t bytes_used;
+	size_t bytes_last_collected;
 	double percent_free;
 	double percent_used;
 	double percent_last_collected;
@@ -108,7 +108,7 @@ int opt_trace_heap = 0;
 
 static int gc_running = 0;
 
-static unsigned gc_extent;
+static size_t gc_extent;
 
 static void* gc_start;
 static void* gc_next;
@@ -122,11 +122,11 @@ static CELL gc_unrooted_resource_list = V_EMPTY;
 static CELL gc_other_unrooted_resource_list = V_EMPTY;
 
 #if defined(DEBUG_HEAP)
-static unsigned int gc_num_allocs = 0;
+static unsigned gc_num_allocs = 0;
 #endif
 
 static unsigned gc_num_collections = 0;
-static unsigned gc_last_collected = 0;
+static size_t gc_last_collected = 0;
 static time_stats gc_user_time;
 static time_stats gc_system_time;
 #if defined(__MACH__)
@@ -134,7 +134,7 @@ static time_stats gc_mach_time;
 #endif
 
 GC_FRAME* gc_curr_frame = 0;
-unsigned int gc_frame_depth = 0;
+size_t gc_frame_depth = 0;
 
 #define GC_STATIC_ROOT_MAX 200
 static size_t gc_static_root_count = 0;
@@ -152,7 +152,7 @@ void gc_get_stats(gc_stats* s);
 __attribute__((noreturn))
 static void gc_die(const char* msg)
 {
-	fprintf(stderr, msg);
+	fprintf(stderr, "%s", msg);
 	exit(1);
 }
 
@@ -207,7 +207,7 @@ size_t get_size(CELL v)
 	case T_ENV:               		return sizeof(ENV)         + GET_ENV(v)->count       * sizeof(CELL);
 	case T_STACK_FRAME:       		return sizeof(STACK_FRAME) + GET_STACK_FRAME(v)->len * sizeof(CELL);
 
-	default:                  		fprintf(stderr, "get_size: weird cell contents: 0x%08x\n", (int)v); gc_die("");
+	default:                  		fprintf(stderr, "get_size: weird cell contents: %p\n", (void*)v); gc_die("");
 	}
 }
 
@@ -244,7 +244,7 @@ const char* get_typename(TYPEID type)
 	}
 }
 
-void gc_init(unsigned extent)
+void gc_init(size_t extent)
 {
 	gc_extent = ALIGN_SIZE_DOWN(extent);
 
@@ -277,7 +277,7 @@ void gc_check_headroom()
 {
 #if defined(DEBUG_HEAP)
 	if (opt_heap_check_rand && random() % 1000 < opt_heap_check_rand) {
-		printf("HDRM (%d)", gc_num_allocs);
+		printf("HDRM (%u)", gc_num_allocs);
 		gc_check_heap();
 		gc_collect();
 		gc_collect();
@@ -310,7 +310,7 @@ CELL gc_alloc_raw(TYPEID type, size_t bytes)
 	}
 	if (!ignore_until) {
 		if (opt_heap_check_rand && random() % 1000 < opt_heap_check_rand) {
-			printf("(%d) ", gc_num_allocs);
+			printf("(%u) ", gc_num_allocs);
 			gc_check_heap();
 			gc_collect();
 			gc_collect();
@@ -319,7 +319,7 @@ CELL gc_alloc_raw(TYPEID type, size_t bytes)
 	}
 	if (opt_trace_heap) {
 		++gc_num_allocs;
-		printf("(%d) allocing %s (%lu bytes)\n", gc_num_allocs, typename, bytes);
+		printf("(%u) allocing %s (%zu bytes)\n", gc_num_allocs, typename, bytes);
 	}
 #endif
 	bytes = ALIGN_SIZE(bytes);
@@ -344,8 +344,9 @@ void gc_get_stats(gc_stats* s)
 {
 	s->num_collections = gc_num_collections;
 	s->bytes_total = gc_extent;
-	s->bytes_free = ptr_diff(gc_end, gc_next);
-	s->bytes_used = ptr_diff(gc_next, gc_start);
+    // will always be +ve, so safe to convert to size_t
+	s->bytes_free = (size_t)ptr_diff(gc_end, gc_next); 
+	s->bytes_used = (size_t)ptr_diff(gc_next, gc_start);
 	s->bytes_last_collected = gc_last_collected;
 	s->percent_free = 100. * s->bytes_free / gc_extent;
 	s->percent_used = 100. * s->bytes_used / gc_extent;
@@ -590,12 +591,12 @@ void gc_check_heap()
 	// collect the dynamic roots
 	{
 		GC_FRAME* gc_frame = gc_curr_frame;
-		int depth = 0;
+		unsigned depth = 0;
 		while(gc_frame) {
 			size_t i;
 			for(i = 0; i < gc_frame->len; ++i) {
 				static char buf[256];
-				sprintf(buf, "%s depth %d offset %lu",
+				sprintf(buf, "%s depth %u offset %zu",
 				#if defined(DEBUG_HEAP)
 					gc_frame->caller,
 				#else
@@ -743,7 +744,8 @@ void gc_collect()
     gc_running = 1;
 	++gc_num_collections;
 
-	unsigned bytes_used_before = ptr_diff(gc_next, gc_start);
+    // always positive, so safe to convert to size_t
+	size_t bytes_used_before = (size_t)ptr_diff(gc_next, gc_start);
 
 	gc_other_next = gc_other_start;
     gc_other_unrooted_resource_list = V_EMPTY;
@@ -753,7 +755,7 @@ void gc_collect()
 		size_t i;
 		for(i = 0; i < gc_static_root_count; ++i) {
 #if defined(DEBUG_HEAP)
-			printf("static root %lu: %s\n", i, gc_static_root_name[i]);
+			printf("static root %zu: %s\n", i, gc_static_root_name[i]);
 #endif
 			gc_half_space(gc_static_root[i]);
 		}
@@ -762,14 +764,14 @@ void gc_collect()
 	// collect the dynamic roots
 	{
 		GC_FRAME* gc_frame = gc_curr_frame;
-		int depth = 0;
+		unsigned depth = 0;
 		while(gc_frame) {
 			size_t i;
 			for(i = 0; i < gc_frame->len; ++i) {
 #if defined(DEBUG_HEAP)
-				printf("%s at depth %d, offset %lu\n", gc_frame->caller, depth, i);
+				printf("%s at depth %u, offset %zu\n", gc_frame->caller, depth, i);
 #else
-				//printf("%s at depth %d, offset %lu\n", "dynamic root", depth, i);
+				//printf("%s at depth %u, offset %zu\n", "dynamic root", depth, i);
 #endif
 				gc_half_space(gc_frame->data[i]);
 			}
@@ -782,8 +784,9 @@ void gc_collect()
 
 	gc_swap_arenas();
 
-	unsigned bytes_used_after = ptr_diff(gc_next, gc_start);
-	gc_last_collected = bytes_used_before- bytes_used_after;
+    // always positive, so safe to convert to size_t
+	size_t bytes_used_after = ptr_diff(gc_next, gc_start);
+	gc_last_collected = bytes_used_before - bytes_used_after;
 
     gc_running = 0;
 
@@ -803,7 +806,7 @@ void gc_collect()
     char buf1[100], buf2[100], buf3[100];
 	printf(
         "\n"
-        "GC #%d: %d total, %d free, %d used (%.2f%%), %d collected (%.2f%%)\n"
+        "GC #%u: %zu total, %zu free, %zu used (%.2f%%), %zu collected (%.2f%%)\n"
         "        system - %s\n"
         "        user   - %s\n"
 #if defined(__MACH__)
@@ -838,7 +841,7 @@ CELL func_gc_info(CELL frame)
 {
 	gc_stats s;
 	gc_get_stats(&s);
-	printf("[gc #%d: %d total, %d free, %d used (%.2f%%), %d collected (%.2f%%)]\n",
+	printf("[gc #%d: %zu total, %zu free, %zu used (%.2f%%), %zu collected (%.2f%%)]\n",
 		s.num_collections,
 		s.bytes_total,
 		s.bytes_free,

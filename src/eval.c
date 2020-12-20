@@ -12,10 +12,10 @@ int opt_trace_eval = 0;
 #define opt_trace_eval 0
 #endif
 
-void internal_copy_args(int argc, int rest, CELL frame, CELL args)
+void internal_copy_args(size_t argc, size_t rest, CELL frame, CELL args)
 {
 	CELL* argv = GET_ENV(frame)->cells;
-	int argi;
+	size_t argi;
 	for(argi = 0; argi < argc; ++argi) {
 		*argv++ = CAR(args);
 		args = CDR(args);
@@ -43,9 +43,9 @@ static CELL exn_cont = V_EMPTY;
 static CELL env = V_EMPTY;
 static CELL value = V_EMPTY;
 
-static int argc;
+static size_t argc;
 static CELL frame = V_EMPTY;
-static int argi;
+static size_t argi;
 static CELL args = V_EMPTY;
 
 // never saved to stack
@@ -187,7 +187,7 @@ CELL internal_macro_expand(CELL operator, CELL args0, CELL env0)
 	//TODO shouldn't exn_cont be saved?
 	exn_cont = cont;
 	env = env0;
-	const int argc0 = proper_list_length(args0);
+	const size_t argc0 = proper_list_length(args0);
 	if (argc0 < 0) {
 		gc_unroot();
 		return make_exception("dotted argument list not allowed");
@@ -355,7 +355,7 @@ switch(pc) {
 	case l_apply: // value, argc, args
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
+			printf(" argc=%zu", argc);
 			printf(" args="); trace_cell(args);
 			trace_newline();
 		}
@@ -375,7 +375,7 @@ switch(pc) {
 	case l_apply_no_eval: // value, argc, args
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
+			printf(" argc=%zu", argc);
 			printf(" args="); trace_cell(args);
 			trace_newline();
 		}
@@ -391,7 +391,7 @@ switch(pc) {
 		GET_FRAME_VARS2(argc, args);
 
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
+			printf(" argc=%zu", argc);
 			printf(" args="); trace_cell(args);
 			trace_newline();
 		}
@@ -406,7 +406,7 @@ switch(pc) {
 	case l_apply2: // value, argc, args, avoid_closure, eval_args
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
+			printf(" argc=%zu", argc);
 			printf(" args="); trace_cell(args);
 			printf(" avoid_closure=%d", avoid_closure);
 			printf(" eval_args=%d", eval_args);
@@ -503,9 +503,9 @@ switch(pc) {
 	case l_eval_args: // value, argc, frame, argi, args
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
-			printf(" frame=0x%08x", (int)frame);
-			printf(" argi=%d", argi);
+			printf(" argc=%zu", argc);
+			printf(" frame=%p", (void*)frame);
+			printf(" argi=%zu", argi);
 			printf(" args="); trace_cell(args);
 			trace_newline();
 		}
@@ -544,9 +544,9 @@ switch(pc) {
 	case l_eval_args_with_rest: // value, argc, frame, argi, args
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
-			printf(" frame=0x%08x", (int)frame);
-			printf(" argi=%d", argi);
+			printf(" argc=%zu", argc);
+			printf(" frame=%p", (void*)frame);
+			printf(" argi=%zu", argi);
 			printf(" args="); trace_cell(args);
 			trace_newline();
 		}
@@ -644,8 +644,8 @@ switch(pc) {
 	case l_receive_args_for_func_direct: // value, argc, frame
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
-			printf(" frame=0x%08x", (int)frame);
+			printf(" argc=%zu", argc);
+			printf(" frame=%p", (void*)frame);
 			trace_newline();
 		}
 
@@ -673,8 +673,8 @@ switch(pc) {
 	case l_inline_apply_direct: // value, argc, frame
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
-			printf(" frame=0x%08x", (int)frame);
+			printf(" argc=%zu", argc);
+			printf(" frame=%p", (void*)frame);
 			trace_newline();
 		}
 
@@ -700,8 +700,8 @@ switch(pc) {
 	case l_inline_eval_direct: // value, argc, frame
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
-			printf(" frame=0x%08x", (int)frame);
+			printf(" argc=%zu", argc);
+			printf(" frame=%p", (void*)frame);
 			trace_newline();
 		}
 
@@ -719,8 +719,8 @@ switch(pc) {
 	case l_inline_callcc_direct: // value, argc, frame
 	{
 		if (opt_trace_eval) {
-			printf(" argc=%d", argc);
-			printf(" frame=0x%08x", (int)frame);
+			printf(" argc=%zu", argc);
+			printf(" frame=%p", (void*)frame);
 			trace_newline();
 		}
 		gc_check_headroom();
