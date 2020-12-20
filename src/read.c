@@ -101,7 +101,7 @@ int internal_read_char(RCHAN* rchan)
 			return '\n';
 		}
 #else
-		if (ch = readbuf[colno++]) {
+		if ((ch = readbuf[colno++])) {
 			break;
 		}
 #endif /* HAVE_READLINE */
