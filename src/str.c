@@ -1,5 +1,5 @@
 #include "wisp.h"
-#include "string.h"
+#include "str.h"
 
 CELL func_stringp(CELL frame)
 {

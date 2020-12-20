@@ -51,7 +51,7 @@ am_wisp_OBJECTS = arith.$(OBJEXT) bitwise.$(OBJEXT) bool.$(OBJEXT) \
 	keyword.$(OBJEXT) list.$(OBJEXT) main.$(OBJEXT) \
 	mysql.$(OBJEXT) print.$(OBJEXT) quasiquote.$(OBJEXT) \
 	read.$(OBJEXT) record.$(OBJEXT) signals.$(OBJEXT) \
-	stack.$(OBJEXT) string.$(OBJEXT) symbol.$(OBJEXT) \
+	stack.$(OBJEXT) str.$(OBJEXT) symbol.$(OBJEXT) \
 	system.$(OBJEXT) trace.$(OBJEXT) vector.$(OBJEXT) vm.$(OBJEXT)
 wisp_OBJECTS = $(am_wisp_OBJECTS)
 wisp_DEPENDENCIES =
@@ -152,7 +152,7 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-wisp_SOURCES = arith.c bitwise.c bool.c char.c compile.c control.c env.c equiv.c eval.c except.c file.c gc.c heap.c io.c keyword.c list.c main.c mysql.c print.c quasiquote.c read.c record.c signals.c stack.c string.c symbol.c system.c trace.c vector.c vm.c
+wisp_SOURCES = arith.c bitwise.c bool.c char.c compile.c control.c env.c equiv.c eval.c except.c file.c gc.c heap.c io.c keyword.c list.c main.c mysql.c print.c quasiquote.c read.c record.c signals.c stack.c str.c symbol.c system.c trace.c vector.c vm.c
 wisp_LDADD = \
 	@READLINE_LIBS@	
 
@@ -246,7 +246,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/record.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/signals.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/string.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/str.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symbol.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/system.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/trace.Po@am__quote@
