@@ -207,7 +207,9 @@ size_t get_size(CELL v)
 	case T_ENV:               		return sizeof(ENV)         + GET_ENV(v)->count       * sizeof(CELL);
 	case T_STACK_FRAME:       		return sizeof(STACK_FRAME) + GET_STACK_FRAME(v)->len * sizeof(CELL);
 
-	default:                  		fprintf(stderr, "get_size: weird cell contents: %p\n", (void*)v); gc_die("");
+	default:
+		fprintf(stderr, "get_size: weird cell contents: %p\n", (void*)v);
+		gc_die("");
 	}
 }
 
@@ -565,13 +567,13 @@ void gc_check_cell(CELL* cell, const char* label)
 {
 	char* syndrome = "";
 	if (!gc_check_cell_info(cell, &syndrome)) {
-		printf("[%08x] %08x (%s) - %s\n", (int)cell, (int)*cell, label, syndrome);
-		printf("gc_start       = %08x\n", (int)gc_start);
-		printf("gc_next        = %08x\n", (int)gc_next);
-		printf("gc_end         = %08x\n", (int)gc_end);
-		printf("gc_other_start = %08x\n", (int)gc_other_start);
-		printf("gc_other_next  = %08x\n", (int)gc_other_next);
-		printf("gc_other_end   = %08x\n", (int)gc_other_end);
+		printf("[%p] %08x (%s) - %s\n", (void*)cell, (int)*cell, label, syndrome);
+		printf("gc_start       = %p\n", gc_start);
+		printf("gc_next        = %p\n", gc_next);
+		printf("gc_end         = %p\n", gc_end);
+		printf("gc_other_start = %p\n", gc_other_start);
+		printf("gc_other_next  = %p\n", gc_other_next);
+		printf("gc_other_end   = %p\n", gc_other_end);
 		gc_die("");
 	}
 }
@@ -676,6 +678,7 @@ void gc_check_heap()
 
 		case T_RELOC:
 			gc_die("T_RELOC seen while checking!!??\n");
+			break;
 		}
 		p += ALIGN_SIZE(get_size(v));
 	}

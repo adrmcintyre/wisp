@@ -10,6 +10,5 @@ int internal_peek_char(RCHAN* rchan);
 extern CELL internal_read_with_prompt(char *prompt);
 extern CELL internal_read(RCHAN* rchan, CELL token);
 extern CELL internal_read_number(RCHAN* rchan, int base, int ch, TYPEID want_type);
-extern CELL func_read();	
 extern void read_register_symbols();
 

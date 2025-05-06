@@ -21,24 +21,24 @@ static CELL env   = V_NULL;
 static CELL value = V_EMPTY;
 static CELL globals = V_EMPTY;
 
-inline CELL vm_pop()
+static inline CELL vm_pop()
 {
     CELL tos = CAR(stack);
     stack = CDR(stack);
     return tos;
 }
 
-inline void vm_push(CELL tos)
+static inline void vm_push(CELL tos)
 {
     stack = make_cons(tos, stack);
 }
 
-inline CELL* vm_glob_lookup(int glob)
+static inline CELL* vm_glob_lookup(int glob)
 {
     return &GET_VECTOR(globals)->data[glob];
 }
 
-inline CELL* vm_env_lookup(int slot)
+static inline CELL* vm_env_lookup(int slot)
 {
     int depth = ((unsigned) slot) >> 16;
     int offset = slot & 0xffff;
@@ -49,7 +49,7 @@ inline CELL* vm_env_lookup(int slot)
     return &GET_ENV(frame)->cells[offset];
 }
 
-inline CELL vm_make_closure(int label)
+static inline CELL vm_make_closure(int label)
 {
     return make_cons(make_int(label), env);
 }

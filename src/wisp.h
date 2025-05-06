@@ -11,6 +11,10 @@
 //=========================================================================
 // FORWARD DECLARATIONS
 //=========================================================================
+// forward declaration of union_blob
+// the actial definition is in wisp.h
+union union_blob;
+typedef union union_blob* CELL;
 
 //=========================================================================
 // TYPE DECLARATIONS
@@ -30,8 +34,6 @@ typedef long long INT;
 typedef double FLOAT;
 typedef unsigned int SLOT;
 
-union union_blob;
-typedef union union_blob* CELL;
 typedef unsigned char TYPEID;
 
 typedef struct struct_header {
@@ -327,10 +329,12 @@ typedef uintptr_t LITERAL;
 #define T_DB_CONNECTION    0x18
 #define T_DB_RESULT        0x19
 
-#define ALIGN_SIZE(v)      ((size_t)((v) + 3) & ~3)
-#define ALIGN_SIZE_DOWN(v) ((size_t)(v) & ~3)
-#define ALIGN_PTR(p)       ((void*)((uintptr_t)((p) + 3) & ~3))
-#define ALIGN_PTR_DOWN(v)  ((void*)((uintptr_t)(p) & ~3))
+#define ALIGN_BYTES        (1<<LITERAL_VALUE_SHIFT)
+#define ALIGN_MASK         (ALIGN_BYTES-1)
+#define ALIGN_SIZE(v)      ((size_t)((v) + ALIGN_MASK) & ~ALIGN_MASK)
+#define ALIGN_SIZE_DOWN(v) ((size_t)(v) & ~ALIGN_MASK)
+#define ALIGN_PTR(p)       ((void*)((uintptr_t)((p) + ALIGN_MASK) & ~ALIGN_MASK))
+#define ALIGN_PTR_DOWN(v)  ((void*)((uintptr_t)(p) & ~ALIGN_MASK))
 
 #define MAKE_CELL(v) ((CELL)(v))
 #define MAKE_POINTER(v) ((CELL)(v))

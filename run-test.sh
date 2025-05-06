@@ -1,4 +1,4 @@
 #!/bin/bash
-echo '(load "tests/r4rstest.wisp")' | ./wisp > test-results.txt
+echo '(load "tests/r4rstest.wisp")' | ./src/wisp > test-results.txt
 grep -B1 'BUT EXPECTED' test-results.txt > test-failures.txt
 cat test-failures.txt
