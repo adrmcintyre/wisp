@@ -172,5 +172,3 @@
 				(cutoff (- n 1)
 					(stream-cdr s))))))
 
-(define (recip12 n)
-	(quotient 12 n))

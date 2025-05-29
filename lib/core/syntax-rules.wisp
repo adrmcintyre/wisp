@@ -1,65 +1,46 @@
-;Hygienic R5RS macro-by-example for SILK ;-*-scheme-*-
-;Dorai Sitaram ds26@gte.com http://www.cs.rice.edu/~dorai/
-;April 17, 1998
+; Adapted from:
+;   Hygienic R5RS macro-by-example for SILK ;-*-scheme-*-
+;   Dorai Sitaram ds26@gte.com http://www.cs.rice.edu/~dorai/
+;   April 17, 1998
 
-;some common Scheme utilities
+; some common Scheme utilities
 
-(define reverse!
-  (lambda (s)
+(define (core:reverse! s)
     (let loop ((s s) (r '()))
       (if (null? s) r
           (let ((d (cdr s)))
             (set-cdr! s r)
-            (loop d s))))))
+            (loop d s)))))
 
-(define append!
-  (lambda (l1 l2)
+(define (core:append! l1 l2)
     (cond ((null? l1) l2)
           ((null? l2) l1)
           (else (let loop ((l1 l1))
                   (if (null? (cdr l1))
                       (set-cdr! l1 l2)
                       (loop (cdr l1))))
-                l1))))
+                l1)))
 
-(define list-tail
-  (lambda (s i)
-    (let loop ((s s) (i i))
-      (if (= i 0) s
-          (loop (cdr s) (+ i 1))))))
-
-(define ormap
-  (lambda (f l)
+(define (core:ormap f l)
     (let loop ((l l))
       (if (null? l) #f
-          (or (f (car l)) (loop (cdr l)))))))
+          (or (f (car l)) (loop (cdr l))))))
 
-(define andmap
-  (lambda (f l)
+(define (core:andmap f l)
     (let loop ((l l))
       (if (null? l) #t
-          (and (f (car l) (loop (cdr l))))))))
+          (and (f (car l)) (loop (cdr l))))))
 
-(define *gentemp-counter* -1)
+; Hygiene
 
-(define gentemp
-  (lambda ()
-    (set! *gentemp-counter* (+ *gentemp-counter* 1))
-    (string->symbol (string-append "GenTemp%" 
-				   (number->string *gentemp-counter*)))))
-
-;Hygiene
-
-(define hyg:rassq
-  (lambda (k al)
+(define (hyg:rassq k al)
     (let loop ((al al))
       (if (null? al) #f
         (let ((c (car al)))
           (if (eq? (cdr c) k) c
-            (loop (cdr al))))))))
+            (loop (cdr al)))))))
 
-(define hyg:tag
-  (lambda (e kk al)
+(define (hyg:tag e kk al)
     (cond ((pair? e)
             (let* ((a-te-al (hyg:tag (car e) kk al))
                     (d-te-al (hyg:tag (cdr e) kk (cdr a-te-al))))
@@ -75,14 +56,13 @@
             (lambda (c)
               (cons (car c) al)))
           (else
-            (let ((te (gentemp)))
+            (let ((te (gensym)))
               (cons te (cons (cons te e) al))))))
-      (else (cons e al)))))
+      (else (cons e al))))
 
-;untagging
+; untagging
 
-(define hyg:untag
-  (lambda (e al tmps)
+(define (hyg:untag e al tmps)
     (if (pair? e)
       (let ((a (hyg:untag (car e) al tmps)))
         (if (list? e)
@@ -118,23 +98,20 @@
                          (cdr e))))
             (else (cons a (hyg:untag-list (cdr e) al tmps))))
           (cons a (hyg:untag-list* (cdr e) al tmps))))
-      (hyg:untag-vanilla e al tmps))))
+      (hyg:untag-vanilla e al tmps)))
 
-(define hyg:untag-list
-  (lambda (ee al tmps)
+(define (hyg:untag-list ee al tmps)
     (map (lambda (e)
-           (hyg:untag e al tmps)) ee)))
+           (hyg:untag e al tmps)) ee))
 
-(define hyg:untag-list*
-  (lambda (ee al tmps)
+(define( hyg:untag-list* ee al tmps)
     (let loop ((ee ee))
       (if (pair? ee)
         (cons (hyg:untag (car ee) al tmps)
           (loop (cdr ee)))
-        (hyg:untag ee al tmps)))))
+        (hyg:untag ee al tmps))))
 
-(define hyg:untag-no-tags
-  (lambda (e al)
+(define (hyg:untag-no-tags e al)
     (cond ((pair? e)
             (cons (hyg:untag-no-tags (car e) al)
               (hyg:untag-no-tags (cdr e) al)))
@@ -143,50 +120,45 @@
           (hyg:untag-no-tags (vector->list e) al)))
       ((not (symbol? e)) e)
       ((assq e al) => cdr)
-      (else e))))
+      (else e)))
 
-(define hyg:untag-lambda
-  (lambda (bvv body al tmps)
-    (let ((tmps2 (append! (hyg:flatten bvv) tmps)))
+(define (hyg:untag-lambda bvv body al tmps)
+    (let ((tmps2 (core:append! (hyg:flatten bvv) tmps)))
       `(lambda ,bvv
-         ,@(hyg:untag-list body al tmps2)))))
+         ,@(hyg:untag-list body al tmps2))))
 
-(define hyg:untag-letrec
-  (lambda (varvals body al tmps)
-    (let ((tmps (append! (map car varvals) tmps)))
+(define (hyg:untag-letrec varvals body al tmps)
+    (let ((tmps (core:append! (map car varvals) tmps)))
       `(letrec
          ,(map
             (lambda (varval)
               `(,(car varval)
                  ,(hyg:untag (cadr varval) al tmps)))
             varvals)
-         ,@(hyg:untag-list body al tmps)))))
+         ,@(hyg:untag-list body al tmps))))
 
-(define hyg:untag-let
-  (lambda (varvals body al tmps)
-    (let ((tmps2 (append! (map car varvals) tmps)))
+(define (hyg:untag-let varvals body al tmps)
+    (let ((tmps2 (core:append! (map car varvals) tmps)))
       `(let
          ,(map
              (lambda (varval)
                `(,(car varval)
                   ,(hyg:untag (cadr varval) al tmps)))
              varvals)
-         ,@(hyg:untag-list body al tmps2)))))
+         ,@(hyg:untag-list body al tmps2))))
 
-(define hyg:untag-named-let
-  (lambda (lname varvals body al tmps)
-    (let ((tmps2 (cons lname (append! (map car varvals) tmps))))
+(define (hyg:untag-named-let lname varvals body al tmps)
+    (let ((tmps2 (cons lname (core:append! (map car varvals) tmps))))
       `(let ,lname
          ,(map
              (lambda (varval)
                `(,(car varval)
                   ,(hyg:untag (cadr varval) al tmps)))
              varvals)
-         ,@(hyg:untag-list body al tmps2)))))
+         ,@(hyg:untag-list body al tmps2))))
 
-(define hyg:untag-let*
-  (lambda (varvals body al tmps)
-    (let ((tmps2 (append! (reverse! (map car varvals)) tmps)))
+(define (hyg:untag-let* varvals body al tmps)
+    (let ((tmps2 (core:append! (core:reverse! (map car varvals)) tmps)))
       `(let*
          ,(let loop ((varvals varvals)
                       (i (length varvals)))
@@ -196,11 +168,10 @@
                          ,(hyg:untag (cadr varval)
                             al (list-tail tmps2 i)))
                   (loop (cdr varvals) (- i 1))))))
-         ,@(hyg:untag-list body al tmps2)))))
+         ,@(hyg:untag-list body al tmps2))))
 
-(define hyg:untag-do
-  (lambda (varinistps exit-test body al tmps)
-    (let ((tmps2 (append! (map car varinistps) tmps)))
+(define (hyg:untag-do varinistps exit-test body al tmps)
+    (let ((tmps2 (core:append! (map car varinistps) tmps)))
       `(do
          ,(map
             (lambda (varinistp)
@@ -209,10 +180,9 @@
                            (cons var tmps)))))
             varinistps)
          ,(hyg:untag-list exit-test al tmps2)
-         ,@(hyg:untag-list body al tmps2)))))
+         ,@(hyg:untag-list body al tmps2))))
 
-(define hyg:untag-vanilla
-  (lambda (e al tmps)
+(define (hyg:untag-vanilla e al tmps)
     (cond ((pair? e)
             (cons (hyg:untag-vanilla (car e) al tmps)
               (hyg:untag-vanilla (cdr e) al tmps)))
@@ -222,195 +192,196 @@
       ((not (symbol? e)) e)
       ((memq e tmps) e)
       ((assq e al) => cdr)
-      (else e))))
+      (else e)))
 
-(define hyg:flatten
-  (lambda (e)
+(define (hyg:flatten e)
     (let loop ((e e) (r '()))
       (cond ((pair? e) (loop (car e)
 			     (loop (cdr e) r)))
 	    ((null? e) r)
-	    (else (cons e r))))))
+	    (else (cons e r)))))
 
-;End of hygiene filter.
+; End of hygiene filter.
 
-;finds the leftmost index of list l where something equal to x
-;occurs
+; finds the leftmost index of list l where something equal to x occurs
 
-(define mbe:position
-  (lambda (x l)
+(define (core:position x l)
     (let loop ((l l) (i 0))
       (cond ((not (pair? l)) #f)
 	    ((equal? (car l) x) i)
-	    (else (loop (cdr l) (+ i 1)))))))
+	    (else (loop (cdr l) (+ i 1))))))
 
-;tests if expression e matches pattern p where k is the list of
-;keywords
+; tests if expression e matches pattern p where k is the list of keywords
 
-(define mbe:matches-pattern?
-  (lambda (p e k)
-    (cond ((mbe:ellipsis? p)
+(define (core:matches-pattern? p e k)
+    (cond ((core:ellipsis? p)
 	   (and (or (null? e) (pair? e))
 		(let* ((p-head (car p))
 		       (p-tail (cddr p))
-		       (e-head=e-tail (mbe:split-at-ellipsis e p-tail)))
+		       (e-head=e-tail (core:split-at-ellipsis e p-tail)))
 		  (and e-head=e-tail
 		       (let ((e-head (car e-head=e-tail))
 			     (e-tail (cdr e-head=e-tail)))
-			 (and (andmap
-			       (lambda (x) (mbe:matches-pattern? p-head x k))
+			 (and (core:andmap
+			       (lambda (x) (core:matches-pattern? p-head x k))
 			       e-head)
-			      (mbe:matches-pattern? p-tail e-tail k)))))))
+			      (core:matches-pattern? p-tail e-tail k)))))))
 	  ((pair? p)
 	   (and (pair? e)
-		(mbe:matches-pattern? (car p) (car e) k)
-		(mbe:matches-pattern? (cdr p) (cdr e) k)))
+		(core:matches-pattern? (car p) (car e) k)
+		(core:matches-pattern? (cdr p) (cdr e) k)))
 	  ((symbol? p) (if (memq p k) (eq? p e) #t))
-	  (else (equal? p e)))))
+	  (else (equal? p e))))
 
-;gets the bindings of pattern variables of pattern p for
-;expression e;
-;k is the list of keywords
+; gets the bindings of pattern variables of pattern p for expression e;
+; k is the list of keywords
 
-(define mbe:get-bindings
-  (lambda (p e k)
-    (cond ((mbe:ellipsis? p)
+(define (core:get-bindings p e k)
+    (cond ((core:ellipsis? p)
 	   (let* ((p-head (car p))
 		  (p-tail (cddr p))
-		  (e-head=e-tail (mbe:split-at-ellipsis e p-tail))
+		  (e-head=e-tail (core:split-at-ellipsis e p-tail))
 		  (e-head (car e-head=e-tail))
 		  (e-tail (cdr e-head=e-tail)))
-	     (cons (cons (mbe:get-ellipsis-nestings p-head k)
-		     (map (lambda (x) (mbe:get-bindings p-head x k))
+	     (cons (cons (core:get-ellipsis-nestings p-head k)
+		     (map (lambda (x) (core:get-bindings p-head x k))
 			  e-head))
-	       (mbe:get-bindings p-tail e-tail k))))
+	       (core:get-bindings p-tail e-tail k))))
 	  ((pair? p)
-	   (append (mbe:get-bindings (car p) (car e) k)
-	     (mbe:get-bindings (cdr p) (cdr e) k)))
+	   (append (core:get-bindings (car p) (car e) k)
+	     (core:get-bindings (cdr p) (cdr e) k)))
 	  ((symbol? p)
 	   (if (memq p k) '() (list (cons p e))))
-	  (else '()))))
+	  (else '())))
 
-;expands pattern p using environment r;
-;k is the list of keywords
+; expands pattern p using environment r;
+; k is the list of keywords
 
-(define mbe:expand-pattern
-  (lambda (p r k)
-    (cond ((mbe:ellipsis? p)
+(define (core:expand-pattern p r k)
+    (cond ((core:ellipsis? p)
 	   (append (let* ((p-head (car p))
-			  (nestings (mbe:get-ellipsis-nestings p-head k))
-			  (rr (mbe:ellipsis-sub-envs nestings r)))
+			  (nestings (core:get-ellipsis-nestings p-head k))
+			  (rr (core:ellipsis-sub-envs nestings r)))
 		     (map (lambda (r1)
-			    (mbe:expand-pattern p-head (append r1 r) k))
+			    (core:expand-pattern p-head (append r1 r) k))
 			  rr))
-	     (mbe:expand-pattern (cddr p) r k)))
+	     (core:expand-pattern (cddr p) r k)))
 	  ((pair? p)
-	   (cons (mbe:expand-pattern (car p) r k)
-	     (mbe:expand-pattern (cdr p) r k)))
+	   (cons (core:expand-pattern (car p) r k)
+	     (core:expand-pattern (cdr p) r k)))
 	  ((symbol? p)
 	   (if (memq p k) p
 	     (let ((x (assq p r)))
 	       (if x (cdr x) p))))
-	  (else p))))
+	  (else p)))
 
-;returns a list that nests a pattern variable as deeply as it
-;is ellipsed
+; returns a list that nests a pattern variable as deeply as it is ellipsed
 
-(define mbe:get-ellipsis-nestings
-  (lambda (p k)
+(define (core:get-ellipsis-nestings p k)
     (let sub ((p p))
-      (cond ((mbe:ellipsis? p) (cons (sub (car p)) (sub (cddr p))))
+      (cond ((core:ellipsis? p) (cons (sub (car p)) (sub (cddr p))))
 	    ((pair? p) (append (sub (car p)) (sub (cdr p))))
 	    ((symbol? p) (if (memq p k) '() (list p)))
-	    (else '())))))
+	    (else '()))))
 
-;finds the subenvironments in r corresponding to the ellipsed
-;variables in nestings
+; finds the subenvironments in r corresponding to the ellipsed variables in nestings
 
-(define mbe:ellipsis-sub-envs
-  (lambda (nestings r)
-    (ormap (lambda (c)
-		    (if (mbe:contained-in? nestings (car c)) (cdr c) #f))
-		  r)))
+(define (core:ellipsis-sub-envs nestings r)
+    (core:ormap (lambda (c)
+		    (if (core:contained-in? nestings (car c)) (cdr c) #f))
+		  r))
 
-;checks if nestings v and y have an intersection
+; checks if nestings v and y have an intersection
 
-(define mbe:contained-in?
-  (lambda (v y)
+(define (core:contained-in? v y)
     (if (or (symbol? v) (symbol? y)) (eq? v y)
-	(ormap (lambda (v_i)
-			(ormap (lambda (y_j)
-					(mbe:contained-in? v_i y_j))
+	(core:ormap (lambda (v_i)
+			(core:ormap (lambda (y_j)
+					(core:contained-in? v_i y_j))
 				      y))
-		      v))))
+		      v)))
 
-;split expression e so that its second half matches with
-;pattern p-tail
+; split expression e so that its second half matches with pattern p-tail
 
-(define mbe:split-at-ellipsis
-  (lambda (e p-tail)
+(define (core:split-at-ellipsis e p-tail)
     (if (null? p-tail) (cons e '())
-      (let ((i (mbe:position (car p-tail) e)))
+      (let ((i (core:position (car p-tail) e)))
 	(if i (cons (butlast e (- (length e) i))
 		    (list-tail e i))
-	    (error 'mbe:split-at-ellipsis 'bad-arg))))))
+	    (error 'core:split-at-ellipsis 'bad-arg)))))
 
-;tests if x is an ellipsing pattern, i.e., of the form
-;(blah ... . blah2)
+; tests if x is an ellipsing pattern, i.e., of the form (blah ... . blah2)
 
-(define mbe:ellipsis?
-  (lambda (x)
-    (and (pair? x) (pair? (cdr x)) (eq? (cadr x) '...))))
+(define (core:ellipsis? x)
+    (and (pair? x) (pair? (cdr x)) (eq? (cadr x) '...)))
 
-;syntax-rules
 
-(define syntax-rules
-  (macro (keywords . clauses)
-    (let ((macro-name (caar clauses)))
-      `(macro __syntax-rules-arg__
-         ,(mbe:syntax-rules-proc macro-name keywords clauses
+; syntax-rules is a macro that takes
+;      keyword - a list of keywords
+;      clauses - zero(!) or more pattern+transformer clauses
+;
+; E.g. (syntax-rules ()
+;          (<pattern> <transformer>)
+;          (<pattern> <transformer>)
+;          ...)
+; Where the head of each <pattern> is the macro's keyword
+; (it should be the same for each <pattern>).
+; TODO - is this actually checked - maybe we can use _ for subsequent keywords?
+;
+;      (define-syntax foo (syntax-rules (<kw> ...) ((<kw> <pat-tail>) <transformer>) ...))
+;
+; is expanded to:
+;
+;      (define foo (%macro __syntax-rules-arg__ <syntax-rules-proc>))
+;
+; Where syntax-rules-proc is computed by
+;
+;      (core:syntax-rules-proc
+;          '<kw>
+;          '(<kw> ...) 
+;          '(((<kw> <pat-tail>) <transformer>) ...)
+;          __syntax-rules-arg__
+;          __syntax-rules-keywords__)
+;
+(define-macro (syntax-rules keywords . clauses)
+    (let ((macro-name (caaar clauses)))
+      `(%macro __syntax-rules-arg__
+         ,(core:syntax-rules-proc macro-name keywords clauses
                                  '__syntax-rules-arg__
-                                 '__syntax-rules-keywords__)))))
+                                 '__syntax-rules-keywords__))))
 
-(define mbe:syntax-rules-proc
-  (lambda (macro-name keywords clauses arg-sym keywords-sym)
+(define (core:syntax-rules-proc macro-name keywords clauses arg-sym keywords-sym)
+    ; include the macro-name in the list of keywords
     (let ((keywords (cons macro-name keywords)))
       `(let ((,arg-sym (cons ',macro-name ,arg-sym))
-             (,keywords-sym ',keywords-sym))
+           (,keywords-sym ',keywords))
          (cond ,@(map
                   (lambda (clause)
                     (let ((in-pattern (car clause))
                           (out-pattern (cadr clause)))
-                      `((mbe:matches-pattern? ',in-pattern ,arg-sym
+                      `((core:matches-pattern? ',in-pattern ,arg-sym
                                               ,keywords-sym)
                         (let ((tagged-out-pattern+alist
                                (hyg:tag
                                 ',out-pattern
-                                (append! (hyg:flatten ',in-pattern)
+                                (core:append! (hyg:flatten ',in-pattern)
                                          ,keywords-sym) '())))
                           (hyg:untag
-                           (mbe:expand-pattern
+                           (core:expand-pattern
                             (car tagged-out-pattern+alist)
-                            (mbe:get-bindings ',in-pattern ,arg-sym
+                            (core:get-bindings ',in-pattern ,arg-sym
                                               ,keywords-sym)
                             ,keywords-sym)
                            (cdr tagged-out-pattern+alist)
                            '())))))
                   clauses)
                (else (error ',macro-name 'no-matching-clause
-                            ',clauses)))))))
+                            ',clauses))))))
 
-(define define-syntax 
-  (macro arg
-    (cons 'define arg)))
+;; define-syntax, let-syntax and letrec-syntax are just aliases for define, let and letrec.
+(define define-syntax (%macro args (cons 'define args)))
 
-(define let-syntax 
-  (macro arg
-    (cons 'let arg)))
+(define let-syntax (%macro args (cons 'let args)))
 
-(define letrec-syntax
-  (macro arg
-    (cons 'letrec arg)))
+(define letrec-syntax (%macro args (cons 'letrec args)))
 
-
-;end of file

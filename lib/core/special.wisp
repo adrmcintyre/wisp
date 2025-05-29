@@ -37,10 +37,10 @@
 	,(cadr binding)))
 
 ; FIXME - use set-cdr! to avoid having to call reverse at end?
-(define (*decompose-let-bindings* bindings vars vals)
+(define (core:decompose-let-bindings bindings vars vals)
 	(if (null? bindings)
 		(list (reverse vars) (reverse vals))
-		(*decompose-let-bindings*
+		(core:decompose-let-bindings
 			(cdr bindings)
 			(cons (caar bindings) vars)
 			(cons (cadar bindings) vals))))
@@ -48,17 +48,17 @@
 ;
 ; normal let
 ;
-(define-macro (*simple-let* bindings . body)
-	(let1 (vars-vals (*decompose-let-bindings* bindings '() '()))
+(define-macro (core:simple-let bindings . body)
+	(let1 (vars-vals (core:decompose-let-bindings bindings '() '()))
 		`((lambda
 			,(car vars-vals) . ,body)
 		. ,(cadr vars-vals))))
 
-(define (*decompose-letrec-bindings* bindings inits renames sets)
+(define (core:decompose-letrec-bindings bindings inits renames sets)
 	(if (null? bindings)
 		(list (reverse inits) (reverse renames) (reverse sets))
 		(let1 (var* (gensym))
-			(*decompose-letrec-bindings*
+			(core:decompose-letrec-bindings
 				(cdr bindings)
 				(cons (list (caar bindings) (undefined)) inits)
 				(cons (cons var* (cdar bindings)) renames)
@@ -75,11 +75,11 @@
 ; 		(let () body)))
 
 (define-macro (letrec bindings . body)
-	(let1 (inits-renames-sets (*decompose-letrec-bindings* bindings '() '() '()))
-		`(*simple-let* ,(car inits-renames-sets)
-			(*simple-let* ,(cadr inits-renames-sets)
+	(let1 (inits-renames-sets (core:decompose-letrec-bindings bindings '() '() '()))
+		`(core:simple-let ,(car inits-renames-sets)
+			(core:simple-let ,(cadr inits-renames-sets)
 				,@(caddr inits-renames-sets)
-				(*simple-let* () . ,body)))))
+				(core:simple-let () . ,body)))))
 
 ;
 ; let
@@ -87,13 +87,13 @@
 (define-macro (let . form)
 	(if (symbol? (car form))
 		; labelled let
-		(*simple-let* ((name      (car form))
-					   (vars+vals (*decompose-let-bindings* (cadr form) () ()))
+		(core:simple-let ((name      (car form))
+					   (vars+vals (core:decompose-let-bindings (cadr form) () ()))
 					   (body      (cddr form)))
 			`(letrec ((,name (lambda ,(car vars+vals) . ,body)))
 				(,name . ,(cadr vars+vals))))
 		; normal let
-		`(*simple-let* . ,form)))
+		`(core:simple-let . ,form)))
 
 
 ; (lambda formals
@@ -107,12 +107,12 @@
 ;     exp1 exp2 ...))
 
 
-(define (*expand-internal-defines* body defines)
+(define (core:expand-internal-defines body defines)
 	(if (and
 			(pair? body)
 			(pair? (car body))
 			(eq? (caar body) 'define))
-		(*expand-internal-defines*
+		(core:expand-internal-defines
 			(cdr body)
 			(cons
 				(if (pair? (cadar body))
@@ -122,7 +122,7 @@
 		(cons (reverse defines) body)))
 		
 (define-macro (lambda formals . body)
-	(let1 (defines-body (*expand-internal-defines* body '()))
+	(let1 (defines-body (core:expand-internal-defines body '()))
 		(if (null? (car defines-body))
 			`(%lambda ,formals . ,body)
 			`(%lambda ,formals (letrec ,@defines-body)))))
@@ -130,14 +130,14 @@
 ;
 ; let*
 ;
-(define (*expand-let-star* bindings body)
+(define (core:expand-let-star bindings body)
 	(if (or
 			(null? bindings)
 			(null? (cdr bindings)))
-		`(*simple-let* ,bindings . ,body)
+		`(core:simple-let ,bindings . ,body)
 		`(let1 ,(car bindings)
-			,(*expand-let-star* (cdr bindings) body))))
+			,(core:expand-let-star (cdr bindings) body))))
 
 (define-macro (let* bindings . body)
-	(*expand-let-star* bindings body))
+	(core:expand-let-star bindings body))
 

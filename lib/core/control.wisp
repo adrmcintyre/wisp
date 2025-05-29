@@ -5,7 +5,7 @@
 ; <else-clause> ::= (else <expression> ...)
 
 (define-macro (cond . clauses)
-  (define (*expand-cond* clauses)
+  (define (expand-cond clauses)
     (if (null? clauses) (void)
       (if (eq? (caar clauses) 'else)
         (if (null? (cdr clauses))
@@ -15,17 +15,17 @@
           (let ((sym (gensym)))
             `(let ((,sym ,(caar clauses)))
                (if ,sym ,sym
-                 ,(*expand-cond* (cdr clauses)))))
+                 ,(expand-cond (cdr clauses)))))
           (if (eq? (cadar clauses) '=>)
             (let ((sym (gensym)))
               `(let ((,sym ,(caar clauses)))
                  (if ,sym
                    (,@(cddar clauses) ,sym)
-                   ,(*expand-cond* (cdr clauses)))))
+                   ,(expand-cond (cdr clauses)))))
             `(if ,(caar clauses)
                (begin . ,(cdar clauses))
-               ,(*expand-cond* (cdr clauses))))))))
-  (*expand-cond* clauses))
+               ,(expand-cond (cdr clauses))))))))
+  (expand-cond clauses))
 
 
 ; <case-syntax> ::= (case <key> <clause1> <clause2> ... [<else-clause>])
@@ -33,7 +33,7 @@
 ; <else-clause> ::= (else <expression1> <expression2> ...)
 
 (define-macro (case key . clauses)
-  (define (*expand-case* keyvar clauses)
+  (define (expand-case keyvar clauses)
     (let loop ((clauses clauses))
       (if (null? clauses) (void)
         (if (eq? (caar clauses) 'else)
@@ -45,7 +45,7 @@
              ,(loop (cdr clauses)))))))
   (let ((keyvar (gensym)))
     `(let ((,keyvar ,key))
-       ,(*expand-case* keyvar clauses))))
+       ,(expand-case keyvar clauses))))
 
 ; TODO - add a better 'do' implementation
 (define-macro (do bindings test-and-result . body)

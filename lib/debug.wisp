@@ -1,62 +1,73 @@
 
 (require "srfi/1")
 
-(define (tr x)
-  (write x)
-  (newline)
-  x)
+;
+; Helper functions
+;
 
-(define (tab-inc)
-  (set! *tab-pos* (+ *tab-pos* 1)))
+(define (debug:tab-inc)
+  (set! *debug:tab-pos* (+ *debug:tab-pos* 1)))
 
-(define (tab-dec)
-  (set! *tab-pos* (- *tab-pos* 1)))
+(define (debug:tab-dec)
+  (set! *debug:tab-pos* (- *debug:tab-pos* 1)))
 
-(define (tab-reset)
-  (set! *tab-pos* 0))
+(define (debug:tab-reset)
+  (set! *debug:tab-pos* 0))
 
-(define *tab-pos* 0)
+(define *debug:tab-pos* 0)
 
-(define (tab-out)
-  (let loop ((t *tab-pos*))
+(define (debug:tab-out)
+  (let loop ((t *debug:tab-pos*))
     (if (> t 0)
       (begin
         (display " ")
         (loop (- t 1))))))
 
-(define *traced* '())
+(define *debug:traced* '())
 
-(define (traced? sym)
-  (assoc sym *traced*))
+(define (debug:traced? sym)
+  (assoc sym *debug:traced*))
 
-(define (add-trace sym value)
-  (set! *traced* (alist-cons sym value  *traced*)))
+(define (debug:add-trace sym value)
+  (set! *debug:traced* (alist-cons sym value  *debug:traced*)))
 
-(define (delete-trace sym)
-  (set! *traced* (alist-delete sym *traced*)))
+(define (debug:delete-trace sym)
+  (set! *debug:traced* (alist-delete sym *debug:traced*)))
 
-(define (make-trace sym value)
+(define (debug:make-trace sym value)
   (lambda ARGS
-    (tab-out) (display "TR ") (write (cons sym ARGS)) (newline)
-    (tab-inc)
+    (debug:tab-out) (display "TR ") (write (cons sym ARGS)) (newline)
+    (debug:tab-inc)
     (let ((result (apply value args)))
-      (tab-dec)
-      (tab-out) (display "=> ") (write result) (newline)
+      (debug:tab-dec)
+      (debug:tab-out) (display "=> ") (write result) (newline)
       result)))
 
-(define-macro (attach-trace sym)
-    (if (traced? sym)
+;
+; Enable tracing on a symbol
+;
+(define-macro (debug-trace sym)
+    (if (debug:traced? sym)
        (error "already traced")
        `(begin
-         (add-trace ',sym ,sym)
-         (set! ,sym (make-trace ',sym ,sym)))))
+         (debug:add-trace ',sym ,sym)
+         (set! ,sym (debug:make-trace ',sym ,sym)))))
 
-(define-macro (detach-trace sym)
+;
+; Disable tracing on a symbol
+;
+(define-macro (debug-untrace sym)
     (cond
       ((traced? sym) => (lambda (sym_dot_value)
                           `(begin
                              (set! ,sym ',(cdr sym_dot_value))
-                             (delete-trace ',sym))))
+                             (debug:delete-trace ',sym))))
       (else
         (error "not traced"))))
+
+; Output x followed by newline.
+(define (tr x)
+  (write x)
+  (newline)
+  x)
 

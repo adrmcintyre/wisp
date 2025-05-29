@@ -1,5 +1,5 @@
 ;
-; srfi-9 compatiable records
+; srfi-9 compatible records
 ;
 
 ; intended to support the following syntax

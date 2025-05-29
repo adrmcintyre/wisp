@@ -31,7 +31,7 @@
 	(lambda args
 		(f (apply g args))))
 
-(define (composelis . fns)
+(define (compose-list . fns)
 	((foldr compose id) fns))
 
 
@@ -76,18 +76,18 @@
 ;
 ; a hylomorphism is the composition of a catamorphism and an anamorphism...
 ;
-(define (hylomorphism cata ana)
+(define (hylo cata ana)
 	(compose cata ana))
 
 ; ... e.g.
 (define hylo-factorial
-	(hylomorphism (fold * 1)
+	(hylo (fold * 1)
 		(unfold zero? id (rsect - 1))))
 
 ;
 ; a paramorphism
 ;
-(define (paramorphism p f b op)
+(define (para p f b op)
 	(lambda (x)
 		(let h ((x x))
 			(if (p x) b
@@ -95,7 +95,7 @@
 					(op x1 (h x1)))))))
 
 (define para-factorial
-	(paramorphism
+	(para
 		zero?
 		(rsect - 1)
 		1
@@ -105,33 +105,36 @@
 ;
 ; apo :: (b -> Either (c,b) [c]) -> b -> [c]
 ; apo f b = case f b of
-;   Left (c,b) -> c : apo f b
-;   Right cs -> cs
+;   left (c,b) -> c : apo f b
+;   right cs -> cs
 
-; f returns (Left c b) to insert c into the output, and recurse on b
-;           (Right cs) to insert cs in the tail and stop recursing
+; f returns (left c b) to insert c into the output, and recurse on b
+;           (right cs) to insert cs in the tail and stop recursing
 
-(define (Left x) `(Left ,x))
-(define (Left? x) (eq? (first x) 'Left))
-(define (withLeft x fn) (fn (second x)))
+(define (left x) `(left ,x))
+(define (left? x) (eq? (first x) 'left))
+(define (with-left x fn) (fn (second x)))
 
-(define (Right x) `(Right ,x))
-(define (Right? x) (eq? (first x) 'Right))
-(define (withRight x fn) (fn (second x)))
+(define (right x) `(right ,x))
+(define (right? x) (eq? (first x) 'right))
+(define (with-right x fn) (fn (second x)))
 
-(define (Pair x y) (cons x y))
-(define (withPair x fn) (fn (car x) (cdr x)))
+; happily pair? already exists with the correct definition
+; assuming we keep pair == cons
+;(define pair? pair?)
+(define pair cons)
+(define (with-pair x fn) (fn (car x) (cdr x)))
 
 
 (define-macro (deftype type . args)
-	(let ((type?    (string->symbol (string-append        (symbol->string type) "?")))
-		  (withType (string->symbol (string-append "with" (symbol->string type)    ))))
+	(let ((type?     (string->symbol (string-append        (symbol->string type) "?")))
+		  (with-type (string->symbol (string-append "with" (symbol->string type)    ))))
 		`(begin
 			(define (,type . ,args)
 				(list ',type . ,args))
 			(define (,type? x)
 				(eq? (first x) ',type))
-			(define (,withType x fn)
+			(define (,with-type x fn)
 				(apply fn (rest x))))))
 
 ;
@@ -139,12 +142,12 @@
 ; scheme that works with (possibly infinite) co-data (i.e. streams).
 ; Naturally it depends on lazy evaluation if the stream *is* infinite.
 ;
-(define (apomorphism f b)
+(define (apo f b)
 	(let ((fb (f b)))
-		(if (Left? fb) (cons
-						(withLeft fb car)
-						(apomorphism f (withLeft fb cdr)))
-			(withRight fb id))))
+		(if (left? fb) (cons
+						(with-left fb car)
+						(apo f (with-left fb cdr)))
+			(with-right fb id))))
 
 ; what about zygomorphism and histomorphism ?
 
