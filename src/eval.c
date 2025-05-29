@@ -640,14 +640,20 @@ CELL internal_execute() {
                     trace_newline();
                 }
 
-                const INT func_index = GET_INT(GET_FUNC(value)->func_index);
+                // copy value in case func overwrites and we need it later to fill in the exception source
+                // (e.g. (load ...)
+                CELL fn = value;
+                const INT func_index = GET_INT(GET_FUNC(fn)->func_index);
                 const FUNC_ENTRY func_entry = func_entries[func_index];
+                // protect fn in case func application throws and we need to retrieve the func name
+                gc_root_1("l_receive_args_for_func_direct", fn);
                 const CELL result = (*func_entry)(frame);
+                gc_unroot();
                 frame = V_EMPTY;
                 if (EXCEPTIONP(result)) {
                     EXCEPTION *p = GET_EXCEPTION(result);
                     if (NULLP(p->source_str)) {
-                        p->source_str = GET_FUNC(value)->name_str;
+                        p->source_str = GET_FUNC(fn)->name_str;
                     }
                     THROW(result);
                 } else {
