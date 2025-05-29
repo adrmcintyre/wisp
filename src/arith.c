@@ -1,115 +1,179 @@
 #include "wisp.h"
+// for gc_root funcs
+#include "gc.h"
 #include "arith.h"
 #include <math.h>
 
-CELL func_numberp(CELL frame)
-{
-	return MKBOOL(NUMBERP(FV0));
+DECLARE_FUNC(
+    func_numberp, 1, 1,
+    "number?", "obj",
+    "Returns #t if <obj> is numeric, otherwise #f."
+)
+
+CELL func_numberp(CELL frame) {
+    return make_bool(NUMBERP(FV0));
 }
 
-CELL func_complexp(CELL frame)
-{
-	return MKBOOL(NUMBERP(FV0));
+DECLARE_FUNC(
+    func_complexp, 1, 1,
+    "complex?", "obj",
+    "Returns #t if <obj> is a valid complex number, otherwise #f."
+)
+
+CELL func_complexp(CELL frame) {
+    return make_bool(NUMBERP(FV0));
 }
 
-CELL func_realp(CELL frame)
-{
-	return MKBOOL(NUMBERP(FV0));
+DECLARE_FUNC(
+    func_realp, 1, 1,
+    "real?", "obj",
+    "Returns #t if <obj> is a valid real number, otherwise #f."
+)
+
+CELL func_realp(CELL frame) {
+    return make_bool(NUMBERP(FV0));
 }
 
-CELL func_rationalp(CELL frame)
-{
-	return MKBOOL(INTP(FV0));
+DECLARE_FUNC(
+    func_rationalp, 1, 1,
+    "rational?", "obj",
+    "Returns #t if <obj> is a valid rational number, otherwise #f."
+)
+
+CELL func_rationalp(CELL frame) {
+    return make_bool(INTP(FV0));
 }
 
-CELL func_integerp(CELL frame)
-{
-	return MKBOOL(INTP(FV0));
+DECLARE_FUNC(
+    func_integerp, 1, 1,
+    "integer?", "obj",
+    "Returns #t if <obj> is an integer, otherwise #f."
+)
+
+CELL func_integerp(CELL frame) {
+    return make_bool(INTP(FV0));
 }
 
-CELL func_exactp(CELL frame)
-{
-	return MKBOOL(INTP(FV0));
+DECLARE_FUNC(
+    func_exactp, 1, 1,
+    "exact?", "obj",
+    "Returns #t if <obj> is an exact number (i.e. rational or integer),"
+    " otherwise #f."
+)
+
+CELL func_exactp(CELL frame) {
+    return make_bool(INTP(FV0));
 }
 
-CELL func_inexactp(CELL frame)
-{
-	return MKBOOL(FLOATP(FV0));
+DECLARE_FUNC(
+    func_inexactp, 1, 1,
+    "inexact?", "obj",
+    "Returns #t if <obj> is an inexact number (i.e. neither rational nor"
+    " integer), otherwise #f."
+)
+
+CELL func_inexactp(CELL frame) {
+    return make_bool(FLOATP(FV0));
 }
 
-CELL func_negativep(CELL frame)
-{
-    switch(GET_TYPE(FV0)) {
-    case T_INT:
-		return MKBOOL(GET_INT(FV0) < 0);
-    case T_FLOAT:
-		return MKBOOL(GET_FLOAT(FV0) < 0);
-	default:
-		return make_exception("expects <number> argument");
-	}
+DECLARE_FUNC(
+    func_zerop, 1, 1,
+    "zero?", "obj",
+    "Returns #t if <obj> is a number equal to zero, otherwise #f."
+)
+
+CELL func_zerop(CELL frame) {
+    if (!NUMBERP(FV0)) {
+        return V_FALSE;
+    }
+    if (INTP(FV0)) {
+        return make_bool(GET_INT(FV0) == 0);
+    }
+    return make_bool(GET_FLOAT(FV0) == 0);
 }
 
-CELL func_positivep(CELL frame)
-{
-    switch(GET_TYPE(FV0)) {
-    case T_INT:
-		return MKBOOL(GET_INT(FV0) > 0);
-    case T_FLOAT:
-		return MKBOOL(GET_FLOAT(FV0) > 0);
-	default:
-		return make_exception("expects <number> argument");
-	}
+DECLARE_FUNC(
+    func_negativep, 1, 1,
+    "negative?", "real",
+    "Returns #t if <real> is less than 0, otherwise #f."
+)
+
+CELL func_negativep(CELL frame) {
+    ASSERT_NUMBERP(0);
+    if (INTP(FV0)) {
+        return make_bool(GET_INT(FV0) < 0);
+    }
+    return make_bool(GET_FLOAT(FV0) < 0);
 }
 
-CELL func_oddp(CELL frame)
-{
-    switch(GET_TYPE(FV0)) {
-    case T_INT:
-		return MKBOOL(GET_INT(FV0) & 1);
-	default:
-		return make_exception("expects <integer> argument");
-	}
+DECLARE_FUNC(
+    func_positivep, 1, 1,
+    "positive?", "real",
+    "Returns #t if <real> is greater than 0, otherwise #f."
+)
+
+CELL func_positivep(CELL frame) {
+    ASSERT_NUMBERP(0);
+    if (INTP(FV0)) {
+        return make_bool(GET_INT(FV0) > 0);
+    }
+    return make_bool(GET_FLOAT(FV0) > 0);
 }
 
-CELL func_evenp(CELL frame)
-{
-    switch(GET_TYPE(FV0)) {
-    case T_INT:
-		return MKBOOL(!(GET_INT(FV0) & 1));
-	default:
-		return make_exception("expects <integer> argument");
-	}
+DECLARE_FUNC(
+    func_oddp, 1, 1,
+    "odd?", "integer",
+    "Returns #t if <integer> is odd, otherwise #f."
+)
+
+CELL func_oddp(CELL frame) {
+    ASSERT_INTP(0);
+    return make_bool(GET_INT(FV0) & 1);
 }
 
-CELL func_abs(CELL frame)
-{
-    switch(GET_TYPE(FV0)) {
-    case T_INT:
-        {
-            const INT i = GET_INT(FV0);
-            return (i < 0) ? make_int(-i) : FV0;
-        }
-	case T_FLOAT:
-        {
-            const FLOAT f = GET_FLOAT(FV0);
-            return (f < 0) ? make_float(-f) : FV0;
-        }
-    default:
-		return make_exception("expects <number> argument");
-	}
+DECLARE_FUNC(
+    func_evenp, 1, 1,
+    "even?", "integer",
+    "Returns #t if <integer> is even, otherwise #f."
+)
+
+CELL func_evenp(CELL frame) {
+    ASSERT_INTP(0);
+    return make_bool(!(GET_INT(FV0) & 1));
 }
 
-CELL func_quotient(CELL frame)
-{
-	if (! (INTP(FV0) && INTP(FV1)) ) {
-		return make_exception("expects <integer> arguments");
-	}
-	const INT a = GET_INT(FV0);
-	const INT b = GET_INT(FV1);
-	if (b == 0) {
-		return make_exception("division by zero");
-	}
-    const INT r = a / b;
+DECLARE_FUNC(
+    func_abs, 1, 1,
+    "abs", "x:real",
+    "Returns the absolute value of <x>."
+)
+
+CELL func_abs(CELL frame) {
+    ASSERT_NUMBERP(0);
+    if (INTP(FV0)) {
+        const INT x = GET_INT(FV0);
+        return (x < 0) ? make_int(-x) : FV0;
+    }
+    const FLOAT x = GET_FLOAT(FV0);
+    return (x < 0) ? make_float(-x) : FV0;
+}
+
+DECLARE_FUNC(
+    func_quotient, 2, 2,
+    "quotient", "x:integer y:integer",
+    "Returns the quotient of <x> divided by <y>."
+    " It is an error if <y> is 0."
+)
+
+CELL func_quotient(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    const INT x = GET_INT(FV0);
+    const INT y = GET_INT(FV1);
+    if (y == 0) {
+        return make_exception("division by zero");
+    }
+    const INT r = x / y;
     return make_int(r);
 }
 
@@ -117,415 +181,465 @@ CELL func_quotient(CELL frame)
 #error weird implementation of '%' on this architecture!
 #endif
 
-CELL func_remainder(CELL frame)
-{
-	if (! (INTP(FV0) && INTP(FV1)) ) {
-		return make_exception("expects <integer> arguments");
-	}
-	const INT a = GET_INT(FV0);
-	const INT b = GET_INT(FV1);
-	if (b == 0) {
-		return make_exception("division by zero");
-	}
-    const INT r = a % b;
-    return make_int(r);
-}
+DECLARE_FUNC(
+    func_remainder, 2, 2,
+    "remainder", "x:integer y:integer",
+    "Returns the remainder of <x> divided by <y>, with the same sign as <x>."
+    " It is an error if <y> is 0."
+)
 
-CELL func_modulo(CELL frame)
-{
-	if (! (INTP(FV0) && INTP(FV1)) ) {
-		return make_exception("expects <integer> arguments");
-	}
-	const INT a = GET_INT(FV0);
-	const INT b = GET_INT(FV1);
-	if (b == 0) {
-		return make_exception("division by zero");
-	}
-	INT r = a % b;
-	if ((a >= 0) != (b >= 0) && r != 0) {
-		r += b;
-	}
-    return make_int(r);
-}
-
-#define GEN_FLOAT_FUNC1(fn, OPER) \
-CELL func_ ## fn(CELL frame) \
-{ \
-    if (!NUMBERP(FV0)) { \
-        return make_exception("expects <number> argument"); \
-    } \
-    return make_float(OPER(GET_NUMBER_AS_FLOAT(FV0))); \
-}
-
-GEN_FLOAT_FUNC1(floor, floor)
-GEN_FLOAT_FUNC1(ceiling, ceil)
-GEN_FLOAT_FUNC1(truncate, trunc)
-GEN_FLOAT_FUNC1(round, round)
-GEN_FLOAT_FUNC1(exp, exp)
-GEN_FLOAT_FUNC1(log, log)
-GEN_FLOAT_FUNC1(sin, sin)
-GEN_FLOAT_FUNC1(cos, cos)
-GEN_FLOAT_FUNC1(tan, tan)
-GEN_FLOAT_FUNC1(asin, asin)
-GEN_FLOAT_FUNC1(acos, acos)
-GEN_FLOAT_FUNC1(sqrt, sqrt)
-
-CELL func_atan(CELL frame)
-{
-    if (! (NUMBERP(FV0) && (FC==1 || NUMBERP(FV1))) ) {
-        return make_exception("expects <number> arguments");
+CELL func_remainder(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    const INT x = GET_INT(FV0);
+    const INT y = GET_INT(FV1);
+    if (y == 0) {
+        return make_exception("division by zero");
     }
+    const INT r = x % y;
+    return make_int(r);
+}
+
+DECLARE_FUNC(
+    func_modulo, 2, 2,
+    "modulo", "x:integer y:integer",
+    "Returns the remainder of <x> divided by <y>, with the same sign as <y>."
+    " It is an error if <y> is 0."
+)
+
+CELL func_modulo(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    const INT x = GET_INT(FV0);
+    const INT y = GET_INT(FV1);
+    if (y == 0) {
+        return make_exception("division by zero");
+    }
+    INT r = x % y;
+    if ((x >= 0) != (y >= 0) && r != 0) {
+        r += y;
+    }
+    return make_int(r);
+}
+
+#define GEN_FLOAT_FUNC(FUNC_PTR, SYMBOL_NAME, HELP_ARGS, HELP_BODY, ARITH_OP) \
+    DECLARE_FUNC(FUNC_PTR, 1, 1, SYMBOL_NAME, HELP_ARGS, HELP_BODY) \
+    CELL FUNC_PTR(CELL frame) { \
+        ASSERT_NUMBERP(0); \
+        return make_float(ARITH_OP(NUMBER_AS_FLOAT(FV0))); \
+    }
+
+GEN_FLOAT_FUNC(
+    func_floor, "floor", "x:real",
+    "Returns the largest integer not larger than <x>.",
+    floor
+)
+GEN_FLOAT_FUNC(
+    func_ceiling, "ceiling", "x:real",
+    "Returns the smallest integer not smaller than <x>.",
+    ceil
+)
+GEN_FLOAT_FUNC(
+    func_truncate, "truncate", "x:real",
+    "Returns the closest integer to <x> whose absolute value is not"
+    " larger than the absolute value of <x>. I.e. <x> with any"
+    " fractional component zeroed.",
+    trunc
+)
+GEN_FLOAT_FUNC(
+    func_round, "round", "x:real",
+    "Returns the closest integer to <x>, rounding to even when <x>"
+    " is halfway between two integers. This is consistent with the"
+    " default rounding mode specified by the IEEE floating point"
+    " standard.",
+    round
+)
+
+GEN_FLOAT_FUNC(func_exp, "exp", "z:real", "Returns e raised to the power of <z>.", exp)
+GEN_FLOAT_FUNC(func_log, "log", "z:real", "Returns the natural logarithm of <z>.", log)
+GEN_FLOAT_FUNC(func_sin, "sin", "z:real", "Returns the sine of <z>.", sin)
+GEN_FLOAT_FUNC(func_cos, "cos", "z:real", "Returns the cosine of <z>.", cos)
+GEN_FLOAT_FUNC(func_tan, "tan", "z:real", "Returns the tangent of <z>.", tan)
+GEN_FLOAT_FUNC(func_asin, "asin", "z:real", "Returns the arcsine of <z>.", asin)
+GEN_FLOAT_FUNC(func_acos, "acos", "z:real", "Returns the arccosine of <z>.", acos)
+GEN_FLOAT_FUNC(func_sqrt, "sqrt", "z:real", "Returns the square root of <z>.", sqrt)
+
+DECLARE_FUNC(
+    func_atan, 1, 2,
+    "atan", "y:real [x:real]",
+    "Returns the arctangent of <y>, or the angle of the vector (<x>, <y>)"
+)
+
+CELL func_atan(CELL frame) {
     if (FC == 1) {
-        return make_float(atan(GET_NUMBER_AS_FLOAT(FV0)));
+        ASSERT_NUMBERP(0);
+        return make_float(atan(NUMBER_AS_FLOAT(FV0)));
     }
-    else {
-        return make_float(atan2(GET_NUMBER_AS_FLOAT(FV0), GET_NUMBER_AS_FLOAT(FV1)));
-    }
+    ASSERT_NUMBERP(0);
+    ASSERT_NUMBERP(1);
+    return make_float(atan2(NUMBER_AS_FLOAT(FV0), NUMBER_AS_FLOAT(FV1)));
 }
 
-CELL func_expt(CELL frame)
-{
-    if (! (NUMBERP(FV0) && NUMBERP(FV1)) ) {
-        return make_exception("expects <number> arguments");
+DECLARE_FUNC(
+    func_expt, 2, 2,
+    "expt", "z1:real z2:real",
+    "Returns <z1> raised to the power of <z2>."
+);
+
+CELL func_expt(CELL frame) {
+    ASSERT_NUMBERP(0);
+    ASSERT_NUMBERP(1);
+    if (INTP(FV0) && INTP(FV1) && GET_INT(FV1) >= 0) {
+        INT p = GET_INT(FV0);
+        INT e = GET_INT(FV1);
+        INT r = 1;
+        for (; e; e >>= 1) {
+            if (e & 1) r *= p;
+            p *= p;
+        }
+        return make_int(r);
     }
-    if (FLOATP(FV0) || FLOATP(FV1) || GET_INT(FV1) < 0) {
-        return make_float(pow(GET_NUMBER_AS_FLOAT(FV0), GET_NUMBER_AS_FLOAT(FV1)));
-    }
-    INT p = GET_INT(FV0);
-    INT e = GET_INT(FV1);
-    INT r = 1;
-    for( ; e; e >>= 1) {
-        if (e & 1) r *= p;
-        p *= p;
-    }
-    return make_int(r);
+    return make_float(pow(NUMBER_AS_FLOAT(FV0), NUMBER_AS_FLOAT(FV1)));
 }
 
-CELL func_zerop(CELL frame)
-{
-    switch(GET_TYPE(FV0)) {
-    case T_INT:
-        return MKBOOL(GET_INT(FV0) == 0);
-	case T_FLOAT:
-		return MKBOOL(GET_FLOAT(FV0) == 0);
-    default:
-        return V_FALSE;
-	}
+static CELL has_inexact_args(CELL frame) {
+    ASSERT_ALL(ASSERT_NUMBERP);
+    for (INT argi = 0; argi < FC; argi++) {
+        const CELL arg = FV[argi];
+        if (!INTP(arg)) {
+            return V_TRUE;
+        }
+    }
+    return V_FALSE;
 }
 
-#define GEN_COMPARISON(fn, OPER) \
-CELL func_arith_ ## fn(CELL frame) \
-{ \
-	int argi; \
-    for(argi = 0; argi < FC; ++argi) { \
-        if (!NUMBERP(FV[argi])) {\
-            return make_exception("expects <number> arguments"); \
-        } \
-    } \
-    argi = 0; \
-	CELL rhs = FV[argi++]; \
-	while(argi < FC) { \
-		const CELL lhs = rhs; \
-		rhs = FV[argi++]; \
-        if (FLOATP(lhs)) { \
-            const FLOAT a = GET_FLOAT(lhs); \
-            const FLOAT b = GET_NUMBER_AS_FLOAT(rhs); \
-            if (! (a OPER b)) { \
+#define GEN_ARITH_COMPARE_LOOP(TYPE, CONVERT, CMP_OP) \
+    do { \
+        TYPE lhs = CONVERT(FV0); \
+        for (INT argi = 1; argi < FC; argi++) { \
+            const TYPE rhs = CONVERT(FV[argi]); \
+            if (! (lhs CMP_OP rhs)) { \
                 return V_FALSE; \
             } \
+            lhs = rhs; \
         } \
-        else if (FLOATP(rhs)) { \
-            const FLOAT a = GET_NUMBER_AS_FLOAT(lhs); \
-            const FLOAT b = GET_FLOAT(rhs); \
-            if (! (a OPER b)) { \
-                return V_FALSE; \
+    } while (0)
+
+#define GEN_ARITH_COMPARE_FUNC(FUNC_PTR, SYMBOL_NAME, HELP_ARGS, CMP_OP) \
+    DECLARE_FUNC( \
+        FUNC_PTR, 2, -1, \
+        SYMBOL_NAME, HELP_ARGS, \
+        "Returns #t if <x> " SYMBOL_NAME " <y> for all adjacent arguments, otherwise #f." \
+        " Returns #t if there are fewer than 2 arguments." \
+    ) \
+    CELL FUNC_PTR(CELL frame) { \
+        const CELL inexact = has_inexact_args(frame); \
+        if (EXCEPTIONP(inexact)) { \
+            return inexact; \
+        } \
+        if (FC > 1) { \
+            if (TRUEP(inexact)) { \
+                GEN_ARITH_COMPARE_LOOP(FLOAT, NUMBER_AS_FLOAT, CMP_OP); \
             } \
+            else { \
+                GEN_ARITH_COMPARE_LOOP(INT, GET_INT, CMP_OP); \
+            } \
+        } \
+        return V_TRUE; \
+    }
+
+GEN_ARITH_COMPARE_FUNC(func_arith_lt, "<", "real ...", <)
+GEN_ARITH_COMPARE_FUNC(func_arith_le, "<=", "real ...", <=)
+GEN_ARITH_COMPARE_FUNC(func_arith_eq, "=", "real ...", ==)
+GEN_ARITH_COMPARE_FUNC(func_arith_ge, ">=", "real ...", >=)
+GEN_ARITH_COMPARE_FUNC(func_arith_gt, ">", "real ...", >);
+
+#define GEN_ARITH_LOOP(TYPE, CONVERT, INIT, ARITH_OP, IS_SUB_DIV, FINALISE) \
+    do { \
+        TYPE accum = INIT; \
+        INT argi = 0; \
+        if (IS_SUB_DIV && FC > 1) { \
+            accum = CONVERT(FV[argi]); \
+            argi++; \
+        } \
+        for (; argi < FC; argi++) { \
+            accum = accum ARITH_OP CONVERT(FV[argi]); \
+        } \
+        return FINALISE(accum); \
+    } while (0)
+
+#define GEN_ARITH_FUNC(FUNC_PTR, SYMBOL_NAME, HELP, INIT, ARITH_OP, IS_SUB_DIV) \
+    DECLARE_FUNC(FUNC_PTR, 0, -1, SYMBOL_NAME, "z1:real z2:real ...", HELP) \
+    CELL FUNC_PTR(CELL frame) { \
+        const CELL inexact = has_inexact_args(frame); \
+        if (EXCEPTIONP(inexact)) { \
+            return inexact; \
+        } \
+        if (TRUEP(inexact)) { \
+            GEN_ARITH_LOOP(FLOAT, NUMBER_AS_FLOAT, INIT, ARITH_OP, IS_SUB_DIV, make_float); \
+        } else { \
+            GEN_ARITH_LOOP(INT, GET_INT, INIT, ARITH_OP, IS_SUB_DIV, make_int); \
+        } \
+    }
+
+GEN_ARITH_FUNC(
+    func_add,
+    "+",
+    "Returns the sum of all its arguments, i.e. <z1> + <z2> ... + <zn>."
+    " Returns 0 if called with no arguments.",
+    0, +, false
+);
+GEN_ARITH_FUNC(
+    func_sub,
+    "-",
+    "Returns <z1> diminished by the sum of all subsequent arguments, i.e. <z1> - <z2> ... - <zn>."
+    " Returns the negation of <z1> if called with one argument.",
+    0, -, true
+);
+GEN_ARITH_FUNC(
+    func_mul,
+    "*",
+    "Returns the product of all its arguments, i.e. <z1> * <z2> ... * <zn>."
+    " Returns 1 if called with no arguments.",
+    1, *, false
+);
+GEN_ARITH_FUNC(
+    func_div,
+    "/",
+    "Returns <z1> divided by all subsequent arguments, i.e. <z1> / <z2> ... / <zn>."
+    " Returns the inverse of <z1> if called with one argument.",
+    1, /, true
+);
+
+#define GEN_ARITH_MIN_MAX_LOOP(TYPE, CONVERT, MIN_MAX_OP, FINALISE) \
+    do { \
+        TYPE result = CONVERT(FV0); \
+        for (INT argi = 1; argi < FC; argi++) { \
+            const TYPE arg = CONVERT(FV[argi]); \
+            if (arg MIN_MAX_OP result) { \
+                result = arg; \
+            } \
+        } \
+        return FINALISE(result); \
+    } while (0)
+
+#define GEN_ARITH_MIN_MAX_FUNC(FUNC_PTR, SYMBOL_NAME, HELP, MIN_MAX_OP) \
+    DECLARE_FUNC( \
+        FUNC_PTR, 1, -1, \
+        SYMBOL_NAME, "real ...", \
+        HELP \
+    ) \
+    CELL FUNC_PTR(CELL frame) \
+    { \
+        const CELL inexact = has_inexact_args(frame); \
+        if (EXCEPTIONP(inexact)) { \
+            return inexact; \
+        } \
+        if (TRUEP(inexact)) { \
+            GEN_ARITH_MIN_MAX_LOOP(FLOAT, NUMBER_AS_FLOAT, MIN_MAX_OP, make_float); \
         } \
         else { \
-            const INT a = GET_INT(lhs); \
-            const INT b = GET_INT(rhs); \
-            if (! (a OPER b)) { \
-                return V_FALSE; \
-            } \
-		} \
-	} \
-	return V_TRUE; \
-}
-
-GEN_COMPARISON(lt, <);
-GEN_COMPARISON(le, <=);
-GEN_COMPARISON(eq, ==);
-GEN_COMPARISON(ne, !=);
-GEN_COMPARISON(ge, >=);
-GEN_COMPARISON(gt, >);
-
-#define GEN_ARITH(fn, init, OPER) \
-CELL func_ ## fn(CELL frame) \
-{ \
-    /* figure out which domain we should be working in... */ \
-    TYPEID t = T_INT; \
-    int argi; \
-    for(argi = 0; argi < FC; ++argi) { \
-        TYPEID targ = GET_TYPE(FV[argi]); \
-        switch(t | targ << 8) { \
-        case T_INT    | T_FLOAT  << 8: \
-            t = targ; \
-            break; \
-        case T_INT    | T_INT    << 8: \
-        case T_FLOAT  | T_INT    << 8: \
-        case T_FLOAT  | T_FLOAT  << 8: \
-            break; \
-        default: \
-            return make_exception("expects <number> arguments"); \
+            GEN_ARITH_MIN_MAX_LOOP(INT, GET_INT, MIN_MAX_OP, make_int); \
         } \
-    } \
- \
-    CELL result = V_EMPTY; \
-    switch(t) { \
-    /* all args are INT */ \
-    case T_INT: \
-        { \
-            INT i = init; \
-            int argi = 0; \
-            if (FC > 1) { \
-                const CELL arg = FV[argi++]; \
-                i = GET_INT(arg); \
-            } \
-            while(argi < FC) { \
-                const CELL arg = FV[argi++]; \
-                i = i OPER GET_INT(arg); \
-            } \
-            result = make_int(i); \
-        } \
-        break; \
- \
-    /* args are a mixture of INT and FLOAT */ \
-    case T_FLOAT: \
-        { \
-            FLOAT f = init; \
-            int argi = 0; \
-            if (FC > 1) { \
-                const CELL arg = FV[argi++]; \
-                switch(GET_TYPE(arg)) { \
-                case T_INT:    f = GET_INT(arg);    break; \
-                case T_FLOAT:  f = GET_FLOAT(arg);  break; \
-                } \
-            } \
-            while(argi < FC) { \
-                const CELL arg = FV[argi++]; \
-                switch(GET_TYPE(arg)) { \
-                case T_INT:    f = f OPER GET_INT(arg);    break; \
-                case T_FLOAT:  f = f OPER GET_FLOAT(arg);  break; \
-                } \
-            } \
-            result = make_float(f); \
-        } \
-        break; \
-    } \
-    return result; \
-}
+    }
 
-GEN_ARITH(add, 0, +);
-GEN_ARITH(mul, 1, *);
-GEN_ARITH(sub, 0, -);
-GEN_ARITH(div, 1, /);
+GEN_ARITH_MIN_MAX_FUNC(func_min, "min", "Returns the minimum of its arguments.", <)
+GEN_ARITH_MIN_MAX_FUNC(func_max, "max", "Returns the maximum of its arguments.", >)
 
-#define GEN_MIN_MAX(fn, OPER) \
-CELL func_ ## fn(CELL frame) \
-{ \
-	int argi; \
-	int inexact = 0; \
-	for(argi = 0; argi < FC; ++argi) { \
-		if (!NUMBERP(FV[argi])) { \
-			return make_exception("expects <number> arguments"); \
-		} \
-		if (FLOATP(FV[argi])) { \
-			inexact = 1; \
-		} \
-	} \
-	argi = 0; \
-	CELL res = FV[argi++]; \
-	while(argi < FC) { \
-		CELL cf = FV[argi++]; \
-		if (INTP(res) && INTP(cf)) { \
-			if (GET_INT(cf) OPER GET_INT(res)) { \
-				res = cf; \
-			} \
-		} \
-		else { \
-			const FLOAT fcf  = GET_NUMBER_AS_FLOAT(cf); \
-			const FLOAT fres = GET_NUMBER_AS_FLOAT(res); \
-			if (fcf OPER fres) { \
-				res = cf; \
-			} \
-		} \
-	} \
-	return (inexact && INTP(res)) ? make_float(GET_INT(res)) : res; \
-}
+DECLARE_FUNC(
+    func_number2string, 1, 2,
+    "number->string",
+    "number [radix:integer]",
+    "Returns the display representation of <number> in base 10. If <radix> is"
+    " provided it specifies a different base. It is an error to request a base"
+    " other than 2, 8, 10 or 16."
+);
 
-GEN_MIN_MAX(min, <);
-GEN_MIN_MAX(max, >);
-
-CELL func_number2string(CELL frame)
-{
-	int base = 10;
-	if (!NUMBERP(FV0)) {
-		return make_exception("expects <number> argument");
-	}
-	if (FC == 2) {
-		if (!INTP(FV1)) {
-			return make_exception("expects <integer> argument");
-		}
-		base = GET_INT(FV1);
-	}
-	char buf[100];
-	int n = 0;
-    switch(GET_TYPE(FV0)) {
-    case T_INT:
-        {
-            INT a = GET_INT(FV0);
-            char* fmt;
-            switch(base) {
-            case 8:  fmt = a < 0 ? "-%llo" : "%llo"; a = llabs(a); break;
-            case 10: fmt = "%lld"; break;
-            case 16: fmt = a < 0 ? "-%llx" : "%llx"; a = llabs(a); break;
-            case 2:
-            default:
-                return make_exception("unsupported base");
+CELL func_number2string(CELL frame) {
+    ASSERT_NUMBERP(0);
+    INT radix = 10;
+    if (FC == 2) {
+        ASSERT_INTP(1);
+        radix = GET_INT(FV1);
+    }
+    const size_t cap = 64;
+    char buf[cap];
+    INT len = 0;
+    if (INTP(FV0)) {
+        INT num = GET_INT(FV0);
+        // TODO get base 2 support into print and read routines
+        if (radix == 2) {
+            const bool neg = num < 0;
+            if (neg) {
+                num = -num;
             }
-            
-            n = snprintf(buf, sizeof(buf), fmt, a);
-        }
-        break;
 
-	case T_FLOAT:
-		if (base != 10) {
-			return make_exception("unsupported base");
-		}
-		n = snprintf(buf, sizeof(buf), "%f", GET_FLOAT(FV0));
-        break;
-	}
-	if (n >= sizeof(buf)) {
-		return make_exception("conversion buffer overflow");
-	}
-	return make_string_counted(buf, n);
+            char *p = &buf[cap];
+            do {
+                len++;
+                *--p = (num & 1) ? '1' : '0';
+                num >>= 1;
+            } while (num != 0);
+
+            char *q = &buf[neg ? 1 : 0];
+            memmove(q, p, len);
+            if (neg) {
+                buf[0] = '-';
+                len++;
+            }
+            buf[len] = '\0';
+        } else {
+            char *fmt;
+            switch (radix) {
+                case 8:
+                    fmt = num < 0 ? "-%llo" : "%llo";
+                    num = llabs(num);
+                    break;
+                case 10:
+                    fmt = "%lld";
+                    break;
+                case 16:
+                    fmt = num < 0 ? "-%llx" : "%llx";
+                    num = llabs(num);
+                    break;
+                default:
+                    return make_exception("unsupported radix");
+            }
+            len = snprintf(buf, sizeof(buf), fmt, num);
+        }
+    } else {
+        const FLOAT num = GET_FLOAT(FV0);
+        if (radix != 10) {
+            return make_exception("unsupported radix");
+        }
+        len = snprintf(buf, sizeof(buf), "%f", num);
+    }
+    if (len >= sizeof(buf)) {
+        return make_exception("conversion buffer overflow");
+    }
+    return make_string_counted(buf, len);
 }
 
 #include "read.h"
+
 typedef struct {
-	CELL str;
-	int pos;
+    CELL str;
+    INT pos;
 } STRING_RCHAN;
 
-static int stringreader_readch(RCHAN* rchan)
-{
-	STRING_RCHAN* sr = rchan->state;
-	if (sr->pos < GET_STRING(sr->str)->len) {
-		return GET_STRING(sr->str)->data[sr->pos++];
-	}
-	return EOF;
+static int stringreader_readch(RCHAN *rchan) {
+    STRING_RCHAN *st = rchan->state;
+    STRING *p = GET_STRING(st->str);
+    if (st->pos < p->len) {
+        return p->data[st->pos++];
+    }
+    return EOF;
 }
 
-static void stringreader_unreadch(RCHAN* rchan, int ch)
-{
-	STRING_RCHAN* sr = rchan->state;
-	if (sr->pos > 0) {
-		--sr->pos;
-	}
+static void stringreader_unreadch(RCHAN *rchan, int ch) {
+    STRING_RCHAN *st = rchan->state;
+    if (st->pos > 0) {
+        --st->pos;
+    }
 }
 
-CELL func_string2number(CELL frame)
-{
-	if (!STRINGP(FV0)) {
-		return make_exception("expects <string> 1st argument");
-	}
-	int base = 10;
-	if (FC == 2) {
-		if (!INTP(FV1)) {
-			return make_exception("expects <integer> 2nd argument");
-		}
-		base = GET_INT(FV1);
-		switch(base) {
-		case 2:
-		case 8:
-		case 10:
-		case 16:
-			break;
-		default:
-			return make_exception("unsupport radix");
-		}
-	}
-	if (GET_STRING(FV0)->len == 0) {
-		return V_FALSE;
-	}
-	STRING_RCHAN sr = { FV0, 0 };
-	RCHAN rchan = {
-		(void*)&sr,
-		stringreader_readch,
-		stringreader_unreadch
-	};
-	// internal_read_number may provoke a GC, so we'd better protect sr.str
-	gc_root_1("func_string2number", sr.str);
-	CELL res = internal_read_number(&rchan, base, -1, T_EMPTY);
-	if (rchan.readch(&rchan) != EOF) {
-		res = V_FALSE;
-	}
-	gc_unroot();
-	return res;
+DECLARE_FUNC(
+    func_string2number, 1, 2,
+    "string->number",
+    "string [radix:integer]",
+    "Parses <string> as a number in base 10. If <radix> is provided it specifies"
+    " a different base. It is an error to request a base other than 2, 8, 10"
+    " or 16."
+);
+
+CELL func_string2number(CELL frame) {
+    ASSERT_STRINGP(0);
+    INT radix = 10;
+    if (FC == 2) {
+        ASSERT_INTP(1);
+        radix = GET_INT(FV1);
+        switch (radix) {
+            case 2:
+            case 8:
+            case 10:
+            case 16:
+                break;
+            default:
+                return make_exception("unsupport radix");
+        }
+    }
+    if (GET_STRING(FV0)->len == 0) {
+        return V_FALSE;
+    }
+    STRING_RCHAN sr = {FV0, 0};
+    RCHAN rchan = {
+        (void *) &sr,
+        stringreader_readch,
+        stringreader_unreadch
+    };
+    // internal_read_number may provoke a GC, so we'd better protect sr.str
+    gc_root_1("func_string2number", sr.str);
+    CELL res = internal_read_number(&rchan, radix, -1, T_EMPTY);
+    if (EXCEPTIONP(res)) {
+        res = V_FALSE;
+    } else if (rchan.readch(&rchan) != EOF) {
+        // didn't consume the entire string
+        res = V_FALSE;
+    }
+    gc_unroot();
+    return res;
 }
 
-void arith_register_symbols()
-{
-	register_func("number?",   func_numberp,   1, 1);
-	register_func("complex?",  func_complexp,  1, 1);
-	register_func("real?",     func_realp,     1, 1);
-	register_func("rational?", func_rationalp, 1, 1);
-	register_func("integer?",  func_integerp,  1, 1);
-	register_func("exact?",    func_exactp,    1, 1);
-	register_func("inexact?",  func_inexactp,  1, 1);
+void arith_register_symbols() {
+    register_func(&meta_func_numberp);
+    register_func(&meta_func_complexp);
+    register_func(&meta_func_realp);
+    register_func(&meta_func_rationalp);
+    register_func(&meta_func_integerp);
+    register_func(&meta_func_exactp);
+    register_func(&meta_func_inexactp);
+    register_func(&meta_func_zerop);
+    register_func(&meta_func_negativep);
+    register_func(&meta_func_positivep);
+    register_func(&meta_func_oddp);
+    register_func(&meta_func_evenp);
 
-	register_func("zero?",     func_zerop,     1, 1);
-	register_func("negative?", func_negativep, 1, 1);
-	register_func("positive?", func_positivep, 1, 1);
-	register_func("odd?",      func_oddp,      1, 1);
-	register_func("even?",     func_evenp,     1, 1);
+    register_func(&meta_func_abs);
+    register_func(&meta_func_quotient);
+    register_func(&meta_func_remainder);
+    register_func(&meta_func_modulo);
+    register_func(&meta_func_floor);
+    register_func(&meta_func_ceiling);
+    register_func(&meta_func_truncate);
+    register_func(&meta_func_round);
 
-	register_func("abs",       func_abs,       1, 1);
-	register_func("quotient",  func_quotient,  2, 2);
-	register_func("remainder", func_remainder, 2, 2);
-	register_func("modulo",    func_modulo,    2, 2);
+    register_func(&meta_func_exp);
+    register_func(&meta_func_log);
 
-    register_func("floor",     func_floor,     1, 1);
-    register_func("ceiling",   func_ceiling,   1, 1);
-    register_func("truncate",  func_truncate,  1, 1);
-    register_func("round",     func_round,     1, 1);
-    register_func("exp",       func_exp,       1, 1);
-    register_func("log",       func_log,       1, 1);
-    register_func("sin",       func_sin,       1, 1);
-    register_func("cos",       func_cos,       1, 1);
-    register_func("tan",       func_tan,       1, 1);
-    register_func("asin",      func_asin,      1, 1);
-    register_func("acos",      func_acos,      1, 1);
-    register_func("sqrt",      func_sqrt,      1, 1);
-    register_func("atan",      func_atan,      1, 2);
-    register_func("expt",      func_expt,      2, 2);
+    register_func(&meta_func_sin);
+    register_func(&meta_func_cos);
+    register_func(&meta_func_tan);
+    register_func(&meta_func_asin);
+    register_func(&meta_func_acos);
+    register_func(&meta_func_atan);
 
-	register_func("min", func_min, 1, -1);
-	register_func("max", func_max, 1, -1);
+    register_func(&meta_func_expt);
+    register_func(&meta_func_sqrt);
 
-	register_func("<",  func_arith_lt, 2, -1);
-	register_func("<=", func_arith_le, 2, -1);
-	register_func("=",  func_arith_eq, 2, -1);
-	register_func("!=", func_arith_ne, 2, -1);
-	register_func(">=", func_arith_ge, 2, -1);
-	register_func(">",  func_arith_gt, 2, -1);
+    register_func(&meta_func_min);
+    register_func(&meta_func_max);
 
-	register_func("+", func_add, 0, -1);
-	register_func("-", func_sub, 1, -1);
-	register_func("*", func_mul, 0, -1);
-	register_func("/", func_div, 1, -1);
+    register_func(&meta_func_arith_lt);
+    register_func(&meta_func_arith_le);
+    register_func(&meta_func_arith_eq);
+    register_func(&meta_func_arith_ge);
+    register_func(&meta_func_arith_gt);
 
-	register_func("number->string", func_number2string, 1, 2);
-	register_func("string->number", func_string2number, 1, 2);
+    register_func(&meta_func_add);
+    register_func(&meta_func_sub);
+    register_func(&meta_func_mul);
+    register_func(&meta_func_div);
+
+    register_func(&meta_func_number2string);
+    register_func(&meta_func_string2number);
 }
-

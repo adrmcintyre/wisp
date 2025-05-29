@@ -1,39 +1,43 @@
 #include "wisp.h"
+#include "gc.h"
 #include "symbol.h"
 
-CELL func_keywordp(CELL frame)
-{
-	return MKBOOL(KEYWORDP(FV0));
+DECLARE_FUNC(
+    func_keywordp, 1, 1,
+    "keyword?", "obj",
+    "Returns #t if <obj> is a keyword, otherwise #f."
+)
+
+CELL func_keywordp(CELL frame) {
+    return make_bool(KEYWORDP(FV0));
 }
 
-CELL func_keyword_to_string(CELL frame)
-{
-	CELL keyword = FV0;
-	if (!KEYWORDP(keyword)) {
-		return make_exception("expects a <keyword> argument");
-	}
-	KEYWORD* p = GET_KEYWORD(keyword);
-    gc_root_1("func_keyword_to_string", keyword);
-    CELL result = make_string_raw(p->len);
-    gc_unroot();
-    p = GET_KEYWORD(keyword);
-    memcpy(GET_STRING(result)->data, p->data, p->len);
-    return result;
+DECLARE_FUNC(
+    func_keyword_to_string, 1, 1,
+    "keyword->string", "keyword",
+    "Returns the displayed representation of <keyword>,"
+    " omitting the trailing ':'."
+)
+
+CELL func_keyword_to_string(CELL frame) {
+    ASSERT_KEYWORDP(0);
+    return GET_KEYWORD(FV0)->name_str;
 }
 
-CELL func_string_to_keyword(CELL frame)
-{
-	CELL string = FV0;
-	if (!STRINGP(string)) {
-		return make_exception("expects a <string> argument");
-	}
-	return make_keyword_from_string(string);
+DECLARE_FUNC(
+    func_string_to_keyword, 1, 1,
+    "string->keyword", "string",
+    "Returns the keyword with a displayed representation equal to <string>,"
+    " omitting the trailing ':'."
+)
+
+CELL func_string_to_keyword(CELL frame) {
+    ASSERT_STRINGP(0);
+    return make_keyword_from_string(FV0);
 }
 
-void keyword_register_symbols()
-{
-	register_func("keyword?", func_keywordp, 1, 1);
-	register_func("keyword->string", func_keyword_to_string, 1, 1);
-	register_func("string->keyword", func_string_to_keyword, 1, 1);
+void keyword_register_symbols() {
+    register_func(&meta_func_keywordp);
+    register_func(&meta_func_keyword_to_string);
+    register_func(&meta_func_string_to_keyword);
 }
-

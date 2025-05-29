@@ -2,13 +2,16 @@
 #include "eval.h"
 #include "env.h"
 
-CELL func_error(CELL frame)
-{
-	if (!STRINGP(FV0)) {
-		return make_exception("expects string");
-	}
-	STRING* p = GET_STRING(FV0);
-	return make_exception("%.*s", p->len, p->data);
+DECLARE_FUNC(
+    func_error, 1, 1,
+    "error", "reason:string",
+    "Raises an exception with the message <reason>."
+)
+
+CELL func_error(CELL frame) {
+	ASSERT_STRINGP(0);
+    const STRING *p = GET_STRING(FV0);
+    return make_exception("%.*s", p->len, p->data);
 }
 
 #if 0
@@ -26,11 +29,9 @@ CELL special_catch(int argc, CELL argv[], CELL env, CELL* tail_expr, CELL* tail_
 }
 #endif
 
-void except_register_symbols()
-{
-	register_func("error", func_error, 1, 1);
+void except_register_symbols() {
+    register_func(&meta_func_error);
 #if 0
 	register_special("catch", special_catch, 2, 2);
 #endif
 }
-

@@ -1,8 +1,11 @@
+#include "core_types.h"
+
 extern void gc_register_symbols();
-extern int is_valid_heap_pointer(CELL p);
+
+extern bool is_valid_heap_pointer(CELL p);
 
 extern int opt_heap_check_rand;
-extern int opt_trace_heap;
+extern bool opt_trace_heap;
 
 void gc_init(size_t extent);
 
@@ -33,20 +36,21 @@ CELL gc_alloc_raw(TYPEID type, size_t extra_bytes);
 void gc_collect();
 
 typedef struct struct_gc_frame {
-	struct struct_gc_frame *link;
-	size_t len;
-	size_t depth;
+    struct struct_gc_frame *link;
+    size_t len;
+    size_t depth;
 #if defined(DEBUG_HEAP)
 	const char* caller;
 #endif
-	CELL* data[0];
+    CELL *data[0];
 } GC_FRAME;
+
 typedef uintptr_t GC_FRAME_FIELD;
 
-extern GC_FRAME* gc_curr_frame;
+extern GC_FRAME *gc_curr_frame;
 extern size_t gc_frame_depth;
 
-void gc_root_static_impl(CELL* v, const char* name);
+void gc_root_static_impl(CELL *v, const char *name);
 
 #define gc_root_static(v) gc_root_static_impl((CELL*)&(v), #v)
 
@@ -148,4 +152,3 @@ void gc_root_static_impl(CELL* v, const char* name);
 		assert(gc_frame_depth == gc_curr_frame->depth); \
 		gc_curr_frame = ((GC_FRAME*) gc_frame)->link; \
 	} while(0)
-

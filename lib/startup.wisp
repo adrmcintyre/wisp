@@ -28,6 +28,7 @@
 (require "core/vector")
 (require "core/io")
 (require "core/promise")
+(require "core/help")
 
 ; commented out due to several issues - see file for details
 ;(require "core/dynamic-wind")

@@ -2,148 +2,126 @@
 #include <config.h>
 #endif
 
+#include <assert.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
 
-//=========================================================================
-// FORWARD DECLARATIONS
-//=========================================================================
-// forward declaration of union_blob
-// the actial definition is in wisp.h
-union union_blob;
-typedef union union_blob* CELL;
+#include "core_types.h"
 
-//=========================================================================
-// TYPE DECLARATIONS
-//=========================================================================
-
-typedef unsigned char LABEL;
+// ---------------------------------------------------------------------
+// Auxiliary types
+typedef uint8_t LABEL;
+typedef int8_t ARG_COUNT;
 
 typedef struct struct_LABEL_INFO {
-	char* name;
-	unsigned int bitmask;
-	LABEL direct;
+    const char *name;
+    uint8_t len;
+    LABEL direct;
 } LABEL_INFO;
-
-typedef unsigned char BOOL;
-typedef char CHAR;
-typedef long long INT;
-typedef double FLOAT;
-typedef unsigned int SLOT;
-
-typedef unsigned char TYPEID;
-
-typedef struct struct_header {
-	TYPEID type;
-} HEADER;
-
-typedef struct struct_boxed_float {
-	HEADER h;
-	FLOAT value;
-} BOXED_FLOAT;
-
-typedef struct struct_cons {
-	HEADER h;
-	CELL car;
-	CELL cdr;
-} CONS;
-
-typedef struct struct_reloc {
-	HEADER h;
-	CELL reloc;
-} RELOC;
 
 typedef CELL (*FUNC_ENTRY)(CELL frame);
 
-typedef struct struct_func {
-	HEADER h;
-	char *name;
-	FUNC_ENTRY func_entry;
-	LABEL receiver;
-	signed char min_args;
-	signed char max_args;
-} FUNC;
-
-typedef struct struct_string {
-	HEADER h;
-	size_t len;
-	char data[0];
-} STRING;
-
-typedef struct struct_name {
-	HEADER h;
-	CELL binding;
-	unsigned gensym;
-	size_t len;
-	char data[0];
-} NAME;
-
-typedef struct struct_keyword {
-	HEADER h;
-	size_t len;
-	char data[0];
-} KEYWORD;
-
-typedef struct struct_exception {
-	HEADER h;
-	char *source;
-	size_t len;
-	char data[0];
-} EXCEPTION;
-
-typedef struct struct_vector {
-	HEADER h;
-	size_t len;
-	CELL data[0];
-} VECTOR;
-
-typedef struct struct_record {
-	HEADER h;
-	size_t len;
-	CELL data[0];
-} RECORD;
-
-typedef struct struct_compiled_lambda {
-	HEADER h;
-	int is_macro;
-	int argc;
-	int rest;
-	int max_slot;
-	int depth;
-	CELL body;
-} COMPILED_LAMBDA;
+// ---------------------------------------------------------------------
+// Pointer tagged objects
+typedef struct struct_cons {
+    CELL car;
+    CELL cdr;
+} CONS;
 
 typedef struct struct_closure {
-	HEADER h;
-	CELL compiled_lambda;
-	CELL env;
+    CELL compiled_lambda;
+    CELL env;
 } CLOSURE;
-
-typedef struct struct_env {
-	HEADER h;
-	int depth;
-	int count;
-	CELL next;
-	CELL cells[0];
-} ENV;
-
-typedef struct struct_stack_frame {
-	HEADER h;
-	unsigned char len;
-	LABEL pc;
-	CELL env;
-	CELL cont;
-	CELL cells[0];
-} STACK_FRAME;
 
 // FIXME - use a more concrete type for cont?
 typedef struct struct_reified_continuation {
-	HEADER h;
-	CELL cont;
+    CELL cont;
+    CELL pad_reloc;
 } REIFIED_CONTINUATION;
+
+typedef struct struct_name {
+    CELL binding;
+    CELL gensym;
+    CELL name_str;
+} NAME;
+
+static const INT LAMBDA_FLAG_MACRO = 1 << 0;
+static const INT LAMBDA_FLAG_REST = 1 << 1;
+
+typedef struct struct_compiled_lambda {
+    CELL flags;
+    CELL argc;
+    CELL max_slot; // TODO appears to be unused
+    CELL depth;
+    CELL body;
+} COMPILED_LAMBDA;
+
+typedef struct struct_func {
+    CELL name_str;
+    CELL help_args_str;
+    CELL help_body_str;
+    CELL func_index;
+    CELL receiver;
+    CELL min_args;
+    CELL max_args;
+} FUNC;
+
+typedef struct struct_exception {
+    CELL source_str;
+    CELL message_str;
+} EXCEPTION;
+
+// ---------------------------------------------------------------------
+// Indirectly tagged objects
+typedef struct struct_reloc {
+    CELL tag;
+    CELL reloc;
+} RELOC;
+
+typedef struct struct_env {
+    CELL tag;
+    CELL depth;
+    CELL count;
+    CELL next;
+    CELL cells[0];
+} ENV;
+
+typedef struct struct_stack_frame {
+    CELL tag;
+    CELL pc;
+    CELL env;
+    CELL cont;
+    CELL cells[0];
+} STACK_FRAME;
+
+typedef struct struct_string {
+    CELL tag;
+    CELL immutable;
+    INT len;
+    char data[0];
+} STRING;
+
+typedef struct struct_keyword {
+    CELL tag;
+    CELL name_str;
+} KEYWORD;
+
+typedef struct struct_vector {
+    CELL tag;
+    INT len;
+    CELL data[0];
+} VECTOR;
+
+typedef struct struct_record {
+    CELL tag;
+    INT len;
+    CELL data[0];
+} RECORD;
 
 //FIXME - this is getting ridiculous - we need to rationalise
 // our datatypes - e.g. RECORD should just be VECTOR under the hood,
@@ -155,80 +133,422 @@ typedef struct struct_reified_continuation {
 //   pad_reloc, next_resource, mark, and handle.
 //
 typedef struct struct_generic_resource {
-    HEADER h;
+    CELL tag;
     CELL pad_reloc;
     CELL next_resource;
-    char mark;
+    CELL mark;
 } GENERIC_RESOURCE;
 
 typedef struct struct_port {
-    //GENERIC_RESOURCE
-    HEADER h;
-    CELL pad_reloc;
-    CELL next_resource;
-    char mark;
-
-	char mode;
-    FILE* fp;
-    size_t len;
-    char data[0];
+    GENERIC_RESOURCE res;
+    CELL path_str;
+    CELL mode_ch;
+    FILE *fp;
 } PORT;
 
 typedef struct struct_db_connection {
-    //GENERIC_RESOURCE
-    HEADER h;
-    CELL pad_reloc;
-    CELL next_resource;
-    char mark;
-
-    void* handle;
+    GENERIC_RESOURCE res;
+    void *handle;
 } DB_CONNECTION;
 
 typedef struct struct_db_result {
-    //GENERIC_RESOURCE
-    HEADER h;
-    CELL pad_reloc;
-    CELL next_resource;
-    char mark;
-
-    void* handle;
+    GENERIC_RESOURCE res;
+    void *handle;
 } DB_RESULT;
 
-union union_blob {
-	HEADER header;
-	BOXED_FLOAT v_float;
-	STRING v_string;
-	NAME v_name;
-	KEYWORD v_keyword;
-	CONS v_cons;
-	FUNC v_func;
-	CLOSURE v_closure;
-	COMPILED_LAMBDA v_compiled_lambda;
-	EXCEPTION v_exception;
-	VECTOR v_vector;
-	ENV v_env;
-	RELOC v_reloc;
-	REIFIED_CONTINUATION v_reified_continuation;
-	STACK_FRAME v_stack_frame;
+union union_object {
+    CELL tag;
+
+    // Pointer tagged objects
+    CONS v_cons;
+    CLOSURE v_closure;
+    REIFIED_CONTINUATION v_reified_continuation;
+    NAME v_name;
+    COMPILED_LAMBDA v_compiled_lambda;
+    FUNC v_func;
+    EXCEPTION v_exception;
+
+    // Indirectly tagged objects
+    RELOC v_reloc;
+    ENV v_env;
+    STACK_FRAME v_stack_frame;
+    STRING v_string;
+    KEYWORD v_keyword;
+    VECTOR v_vector;
+    RECORD v_record;
 
     // resources
     GENERIC_RESOURCE v_generic_resource;
-	PORT v_port;
+    PORT v_port;
     DB_CONNECTION v_db_connection;
     DB_RESULT v_db_result;
-
-    RECORD v_record;
 };
 
 
-//=========================================================================
-// GLOBALS
-//=========================================================================
+//------------------------------------------------
+// Allocation of CELL bit patterns to each type.
+//
+// 0x0000:0000:0000:0000 - NULL
+// 0x0000:PPPP:PPPP:PPPP - object pointer (when p <> 0)
+//  P = [p47..p3 | t2..t0 ]
+//  where p = 8-byte aligned pointer
+//        t = 3-bit tag
+//  tag values:
+//        0 - indirectly tagged object
+//        1 - cons
+//        2 - closure
+//        3 - reified continuation
+//        4 - name
+//        5 - compiled lambda
+//        6 - func
+//        7 - exception
+//
+// 0x0001:0000:00xx:xxxx - CHAR - unicode codepoint (ascii only for now)
+// 0x0001:2000:0000:xxxx - SLOT
+// 0x0001:4000:0000:0000 - EMPTY
+// 0x0001:6000:0000:0000 - UNDEFINED
+// 0x0001:8000:0000:0000 - VOID
+// 0x0001:a000:0000:0000 - FALSE
+// 0x0001:b000:0000:0000 - TRUE
+// 0x0001:c000:0000:00xx - INDIRECT TAG
+// 0x0001:e000:0000:0000 \
+// ...					 | (unused)
+// 0x0003:e000:0000:0000 /
+//
+// 0x0004:0000:0000:0000 \ double (offset)
+// 0xfffc:0000:0000:0000 /
+//
+// 0xffff:xxxx:xxxx:xxxx - INT
+//
+// Encoding of doubles:
+// (offset)            (unoffset)
+// 0004:0000:0000:0000 0000:0000:0000:0000 \ finite +ve
+// 7ff3:ffff:ffff:ffff 7fef:ffff:ffff:ffff /
+// 7ff4:0000:0000:0000 7ff0:0000:0000:0000 - +inf
+//                  [[ 7ff0:0000:0000:0001 - smallest +sNaN ]]
+// 7ff8:0000:0000:0000 7ff4:0000:0000:0000 - canonical +sNaN
+//                  [[ 7ff7:ffff:ffff:ffff - largest +sNaN  ]]
+//                  [[ 7ff8:0000:0000:0000 - smallest +qNaN ]]
+// 7ffc:0000:0000:0000 7ff8:0000:0000:0000 - canonical +qNaN
+//                  [[ 7fff:ffff:ffff:ffff - largest +qNaN  ]]
+// 7ffd:0000:0000:0000 \ available
+// 7fff:ffff:ffff:ffff /
+//
+// 8000:0000:0000:0000 \ available
+// 8003:ffff:ffff:ffff /
+//
+// 8004:0000:0000:0000 8000:0000:0000:0000 \ finite -ve
+// fff3:ffff:ffff:ffff ffef:ffff:ffff:ffff /
+// fff4:0000:0000:0000 fff0:0000:0000:0000 - -inf
+//                  [[ fff0:0000:0000:0001 - smallest -sNaN ]]
+// fff8:0000:0000:0001 fff4:0000:0000:0001 - canonical -sNaN
+//                  [[ fff7:ffff:ffff:ffff - largest -sNaN  ]]
+//                  [[ fff8:0000:0000:0000 - smallest -qNaN ]]
+// fffc:0000:0000:0000 fff8:0000:0000:0000 - canonical -qNaN
+//                  [[ ffff:ffff:ffff:ffff - largest -qNaN  ]]
+//
+// fffd:0000:0000:0000 \ available
+// fffe:ffff:ffff:ffff /
+//
+// ffff:XXXX:XXXX:XXXX - int32
 
+// ---------------------------------------------------------------------
+// Bit masks, etc for cell contents
+static const uint64_t TAG_MASK = 7;
+static const uint64_t CHAR_MASK = 0x00000000000000ff;
+static const uint64_t INDIRECT_TAG_MASK = 0x00000000000000ff;
+static const uint64_t SLOT_MASK = 0x000000000000ffff;
+static const uint64_t INTEGER_MASK = 0x0000ffffffffffff;
+static const uint64_t VALUE_MASK = 0x00001fffffffffff;
+static const uint64_t FLOAT_OFFSET = 0x0400000000000000;
+static const uint64_t MIN_CHAR_PAYLOAD = 0x0000000000000000;
+static const uint64_t MAX_CHAR_PAYLOAD = 0x00000000000000ff;
+static const uint64_t MIN_SLOT_PAYLOAD = 0x0000000000000000;
+static const uint64_t MAX_SLOT_PAYLOAD = 0x000000000000ffff;
+
+// ---------------------------------------------------------------------
+// Memory alignment helpers
+static const uint64_t ALIGN_BYTES = TAG_MASK + 1;
+static const uint64_t ALIGN_MASK = TAG_MASK;
+
+static inline void *ALIGN_PTR_UP(void *p) { return (void *) ((uintptr_t) p + ALIGN_MASK & ~ALIGN_MASK); }
+static inline size_t ALIGN_SIZE_UP(size_t v) { return v + ALIGN_MASK & ~ALIGN_MASK; }
+static inline size_t ALIGN_SIZE_DOWN(size_t v) { return v & ~ALIGN_MASK; }
+
+// ---------------------------------------------------------------------
+// Type identifiers.
+// Null is a slightly special case (TODO what does this mean?)
+static const TYPEID T_NULL = 0x00; // the empty list
+
+// ---------------------------------------------------------------------
+// Pointer tagged object types (tag is stored with pointer).
+// These values must fit inside TAG_MASK.
+static const TYPEID T_INDIRECTLY_TAGGED = 0x00; // indicates the typeid is in the object's tag field
+static const TYPEID MIN_POINTER_TAG = 0x01;
+static const TYPEID T_CONS = 0x01;
+static const TYPEID T_CLOSURE = 0x02;
+static const TYPEID T_REIFIED_CONTINUATION = 0x03;
+static const TYPEID T_NAME = 0x04;
+static const TYPEID T_COMPILED_LAMBDA = 0x05;
+static const TYPEID T_FUNC = 0x06;
+static const TYPEID T_EXCEPTION = 0x07;
+static const TYPEID MAX_POINTER_TAG = 0x07;
+
+// ---------------------------------------------------------------------
+// Immediate types.
+static const TYPEID T_CHAR = 0x08;
+static const TYPEID T_SLOT = 0x09;
+static const TYPEID T_EMPTY = 0x0a; // unbound arguments / uninitialised storage
+static const TYPEID T_UNDEFINED = 0x0b; // unbound names
+static const TYPEID T_VOID = 0x0c; // for functions that don't return a value
+static const TYPEID T_BOOL = 0x0d;
+static const TYPEID T_INDIRECT_TAG = 0x0e; // initial word indicating indirect type on indirectly tagged objects
+// 0x0f..0x1f are available as immediate tags
+static const TYPEID T_FLOAT = 0x20;
+static const TYPEID T_INT = 0x21;
+
+// ---------------------------------------------------------------------
+// Indirect tagged object types (tag is stored with object).
+static const TYPEID T_RELOC = 0x22;
+static const TYPEID T_ENV = 0x23;
+static const TYPEID T_STACK_FRAME = 0x24;
+static const TYPEID T_STRING = 0x25;
+static const TYPEID T_KEYWORD = 0x26;
+static const TYPEID T_VECTOR = 0x27;
+static const TYPEID T_RECORD = 0x28;
+static const TYPEID T_PORT = 0x29;
+static const TYPEID T_DB_CONNECTION = 0x2a;
+static const TYPEID T_DB_RESULT = 0x2b;
+
+static const uint64_t NULL_BITS = 0x0000000000000000;
+static const uint64_t EMPTY_BITS = (uint64_t) T_EMPTY << 45;
+
+static const CELL V_NULL = {.as_bits = NULL_BITS};
+static const CELL V_EMPTY = {.as_bits = EMPTY_BITS};
+static const CELL V_UNDEFINED = {.as_bits = (uint64_t) T_UNDEFINED << 45};
+static const CELL V_VOID = {.as_bits = (uint64_t) T_VOID << 45};
+static const CELL V_FALSE = {.as_bits = (uint64_t) T_BOOL << 45};
+static const CELL V_TRUE = {.as_bits = (uint64_t) T_BOOL << 45 | (uint64_t) 1 << 44};
+
+// ---------------------------------------------------------------------
+// Helpers for type predicates
+
+// Only valid to be called while known to be a value type.
+static inline TYPEID VALUE_TAG(CELL cell) {
+    uint64_t typeid = cell.as_bits >> 45;
+    if (typeid >= T_FLOAT) {
+        return typeid < (0xffff000000000000 >> 45) ? T_FLOAT : T_INT;
+    }
+    return (TYPEID) typeid;
+}
+
+// Only valid to be called while known to be a value type.
+static inline uint64_t VALUE_PAYLOAD(CELL cell) {
+    return cell.as_bits & VALUE_MASK;
+}
+
+// Only valid to be called while known to be an object type.
+static inline TYPEID POINTER_TAG(CELL cell) {
+    return cell.as_bits & TAG_MASK;
+}
+
+// Only valid to be called while known to be an indirectly tagged object type.
+static inline TYPEID INDIRECT_TAG(CELL cell) {
+    return cell.as_object->tag.as_bits & INDIRECT_TAG_MASK;
+}
+
+static inline bool IS_POINTER_TAG(TYPEID typeid) {
+    return typeid >= MIN_POINTER_TAG && typeid <= MAX_POINTER_TAG;
+}
+
+// Only valid to be called when cell is known to be a value type.
+static inline bool HAS_VALUE_TAG(CELL cell, TYPEID typeid) {
+    assert(typeid != 0);
+    return VALUE_TAG(cell) == typeid;
+}
+
+// Only valid to be call cell is known to be an object type.
+static inline bool HAS_POINTER_TAG(CELL cell, TYPEID typeid) {
+    assert(typeid != 0);
+    return
+            cell.as_bits >> 48 == 0 &&
+            POINTER_TAG(cell) == typeid;
+}
+
+// Valid to be call for all cell type.s
+static inline bool HAS_INDIRECT_TAG(CELL cell, TYPEID typeid) {
+    assert(typeid != 0);
+    return
+            cell.as_bits != 0 &&
+            cell.as_bits >> 48 == 0 &&
+            POINTER_TAG(cell) == T_INDIRECTLY_TAGGED &&
+            INDIRECT_TAG(cell) == typeid;
+}
+
+// ---------------------------------------------------------------------
+// Type predicates
+static inline bool NULLP(CELL cell) { return cell.as_bits == NULL_BITS; }
+
+static inline bool CHARP(CELL cell) { return HAS_VALUE_TAG(cell, T_CHAR); }
+static inline bool SLOTP(CELL cell) { return HAS_VALUE_TAG(cell, T_SLOT); }
+static inline bool EMPTYP(CELL cell) { return HAS_VALUE_TAG(cell, T_EMPTY); }
+static inline bool UNDEFINEDP(CELL cell) { return HAS_VALUE_TAG(cell, T_UNDEFINED); }
+static inline bool VOIDP(CELL cell) { return HAS_VALUE_TAG(cell, T_VOID); }
+static inline bool BOOLP(CELL cell) { return HAS_VALUE_TAG(cell, T_BOOL); }
+
+static inline bool CONSP(CELL cell) { return HAS_POINTER_TAG(cell, T_CONS); }
+static inline bool LISTP(CELL cell) { return NULLP(cell) || HAS_POINTER_TAG(cell, T_CONS); }
+static inline bool CLOSUREP(CELL cell) { return HAS_POINTER_TAG(cell, T_CLOSURE); }
+static inline bool REIFIED_CONTINUATIONP(CELL cell) { return HAS_POINTER_TAG(cell, T_REIFIED_CONTINUATION); }
+static inline bool NAMEP(CELL cell) { return HAS_POINTER_TAG(cell, T_NAME); }
+static inline bool COMPILED_LAMBDAP(CELL cell) { return HAS_POINTER_TAG(cell, T_COMPILED_LAMBDA); }
+static inline bool FUNCP(CELL cell) { return HAS_POINTER_TAG(cell, T_FUNC); }
+static inline bool EXCEPTIONP(CELL cell) { return HAS_POINTER_TAG(cell, T_EXCEPTION); }
+
+static inline bool RELOCP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_RELOC); }
+static inline bool ENVP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_ENV); }
+static inline bool STACK_FRAMEP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_STACK_FRAME); }
+static inline bool STRINGP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_STRING); }
+static inline bool KEYWORDP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_KEYWORD); }
+static inline bool VECTORP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_VECTOR); }
+static inline bool RECORDP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_RECORD); }
+static inline bool PORTP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_PORT); }
+static inline bool DB_CONNECTIONP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_DB_CONNECTION); }
+static inline bool DB_RESULTP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_DB_RESULT); }
+
+static inline bool OBJECTP(CELL cell) { return cell.as_bits != NULL_BITS && cell.as_bits >> 48 == 0; }
+
+static inline bool FLOATP(CELL cell) { return cell.as_bits >> 48 != 0xffff && cell.as_bits >> 50 != 0; }
+static inline bool INTP(CELL cell) { return cell.as_bits >> 48 == 0xffff; }
+static inline bool NUMBERP(CELL cell) { return cell.as_bits >> 50 != 0; }
+
+// Get type when cell known to be an object.
+static inline TYPEID OBJECT_TYPE(CELL cell) {
+    TYPEID t = POINTER_TAG(cell);
+    return (t == T_INDIRECTLY_TAGGED) ? INDIRECT_TAG(cell) : t;
+}
+
+// Returns raw object pointer
+static inline void *OBJECT_POINTER(CELL cell) {
+    cell.as_bits &= ~TAG_MASK;
+    return cell.as_object;
+}
+
+// Get type of any cell.
+static inline TYPEID GET_TYPE(CELL cell) {
+    if (cell.as_bits >> 48 == 0) {
+        if (cell.as_bits == NULL_BITS) {
+            return T_NULL;
+        }
+        return OBJECT_TYPE(cell);
+    }
+    return VALUE_TAG(cell);
+}
+
+// ---------------------------------------------------------------------
+// Getters (safe to call if cell known to be of relevant type).
+
+// ---------------------------------------------------------------------
+// Value getters
+static inline CHAR GET_CHAR(CELL cell) { return (CHAR) (cell.as_bits & CHAR_MASK); }
+static inline SLOT GET_SLOT(CELL cell) { return (SLOT) (cell.as_bits & SLOT_MASK); }
+static inline BOOL GET_BOOL(CELL cell) { return (BOOL) (cell.as_bits != V_FALSE.as_bits); }
+
+static inline FLOAT GET_FLOAT(CELL cell) {
+    cell.as_bits -= FLOAT_OFFSET;
+    return (FLOAT) cell.as_float;
+}
+
+static inline INT GET_INT(CELL cell) { return (INT) cell.as_bits << 16 >> 16; }
+
+static inline FLOAT NUMBER_AS_FLOAT(CELL v) {
+    return INTP(v) ? (FLOAT) GET_INT(v) : GET_FLOAT(v);
+}
+
+// ---------------------------------------------------------------------
+// Object getters (pointer tagged)
+static inline CONS *GET_CONS(CELL cell) {
+    cell.as_bits -= T_CONS;
+    return &cell.as_object->v_cons;
+}
+
+static inline CLOSURE *GET_CLOSURE(CELL cell) {
+    cell.as_bits -= T_CLOSURE;
+    return &cell.as_object->v_closure;
+}
+
+static inline REIFIED_CONTINUATION *GET_REIFIED_CONTINUATION(CELL cell) {
+    cell.as_bits -= T_REIFIED_CONTINUATION;
+    return &cell.as_object->v_reified_continuation;
+}
+
+static inline NAME *GET_NAME(CELL cell) {
+    cell.as_bits -= T_NAME;
+    return &cell.as_object->v_name;
+}
+
+static inline COMPILED_LAMBDA *GET_COMPILED_LAMBDA(CELL cell) {
+    cell.as_bits -= T_COMPILED_LAMBDA;
+    return &cell.as_object->v_compiled_lambda;
+}
+
+static inline FUNC *GET_FUNC(CELL cell) {
+    cell.as_bits -= T_FUNC;
+    return &cell.as_object->v_func;
+}
+
+static inline EXCEPTION *GET_EXCEPTION(CELL cell) {
+    cell.as_bits -= T_EXCEPTION;
+    return &cell.as_object->v_exception;
+}
+
+// ---------------------------------------------------------------------
+// Object getters (indirect tagged)
+static inline RELOC *GET_RELOC(CELL cell) { return &cell.as_object->v_reloc; }
+static inline ENV *GET_ENV(CELL cell) { return &cell.as_object->v_env; }
+static inline STACK_FRAME *GET_STACK_FRAME(CELL cell) { return &cell.as_object->v_stack_frame; }
+static inline STRING *GET_STRING(CELL cell) { return &cell.as_object->v_string; }
+static inline KEYWORD *GET_KEYWORD(CELL cell) { return &cell.as_object->v_keyword; }
+static inline VECTOR *GET_VECTOR(CELL cell) { return &cell.as_object->v_vector; }
+static inline RECORD *GET_RECORD(CELL cell) { return &cell.as_object->v_record; }
+static inline GENERIC_RESOURCE *GET_GENERIC_RESOURCE(CELL cell) { return &cell.as_object->v_generic_resource; }
+static inline PORT *GET_PORT(CELL cell) { return &cell.as_object->v_port; }
+static inline DB_CONNECTION *GET_DB_CONNECTION(CELL cell) { return &cell.as_object->v_db_connection; }
+static inline DB_RESULT *GET_DB_RESULT(CELL cell) { return &cell.as_object->v_db_result; }
+
+// ---------------------------------------------------------------------
+// Field accessor macros
+#define CAR(cell) GET_CONS(cell)->car
+#define CDR(cell) GET_CONS(cell)->cdr
+
+// ---------------------------------------------------------------------
+// Frame accessor macros
+#define FC  (GET_INT(GET_ENV(frame)->count))
+#define FV  (GET_ENV(frame)->cells)
+#define FV0 (FV[0])
+#define FV1 (FV[1])
+#define FV2 (FV[2])
+#define FV3 (FV[3])
+#define FV4 (FV[4])
+#define FV5 (FV[5])
+#define FV6 (FV[6])
+#define FV7 (FV[7])
+#define FV8 (FV[8])
+#define FV9 (FV[9])
+
+// ---------------------------------------------------------------------
+// Global values initialised at runtime.
 extern CELL V_QUOTE;
 extern CELL V_LAMBDA;
 extern CELL V_MACRO;
 extern CELL V_EOF;
+
+// ---------------------------------------------------------------------
+// Misc predicates
+static inline bool EQP(CELL c1, CELL c2) { return c1.as_bits == c2.as_bits; }
+static inline bool LAMBDAP(CELL cell) { return CONSP(cell) && EQP(CAR(cell), V_LAMBDA); }
+static inline bool FALSEP(CELL cell) { return cell.as_bits == V_FALSE.as_bits; }
+static inline bool TRUEP(CELL cell) { return cell.as_bits != V_FALSE.as_bits; }
 
 
 //=========================================================================
@@ -236,251 +556,175 @@ extern CELL V_EOF;
 //=========================================================================
 
 // main.c
-extern void die(char* msg) __attribute__((noreturn));
-extern CELL make_cons(CELL car, CELL cdr);
-extern CELL make_char(CHAR ch);
-extern CELL make_int(INT i);
-extern CELL make_float(FLOAT f);
-extern CELL make_func(char *name, void *entry, LABEL receiver, int min_args, int max_args);
-extern CELL make_string_raw(size_t k);
-extern CELL make_string_counted(char* string, size_t len);
-extern CELL make_string(char *string);
-extern CELL make_string_filled(size_t k, int ch);
-extern CELL make_name(char *name);
-extern CELL make_name_counted(char *name, size_t len);
-extern CELL make_name_from_string(CELL string);
-extern CELL make_name_gensym();
-extern CELL make_keyword_counted(char* keyword, size_t len);
-extern CELL make_keyword_from_string(CELL string);
-extern CELL make_slot(SLOT slot);
-extern CELL make_exception(char *fmt, ...);
-extern CELL make_vector_uninited(size_t len);
-extern CELL make_vector_inited(size_t len, CELL init);
-extern CELL make_record(size_t len);
-extern CELL make_record_uninited(size_t len);
-extern CELL make_compiled_lambda(int is_macro, int argc, int rest, int max_slot, int depth, CELL body);
-extern CELL make_closure(CELL compiled_lambda, CELL env);
-extern CELL make_reified_continuation(CELL cont);
-extern CELL make_stack_frame(size_t len, LABEL pc, CELL env, CELL cont);
-extern CELL make_port(char mode, FILE* fp, char* path);
-extern CELL make_db_connection(void* handle);
-extern CELL make_db_result(void* handle);
-extern CELL register_func(char* name, FUNC_ENTRY entry, int min_args, int max_args);
-extern CELL register_inline(char* name, LABEL receiver, int min_args, int max_args);
-extern size_t proper_list_length(CELL list);
+typedef struct {
+    FUNC_ENTRY fn;
+    LABEL receiver;
+    int min_args;
+    int max_args;
+    const char *name;
+    const char *help_args;
+    const char *help_body;
+} FUNC_META;
 
-// from eval.c
+#define DECLARE_FUNC(FUNC_PTR, MIN_ARGS, MAX_ARGS, SYMBOL_NAME, HELP_ARGS, HELP_BODY) \
+	CELL FUNC_PTR(CELL); \
+	const static FUNC_META meta_ ## FUNC_PTR = { \
+		FUNC_PTR, 0, MIN_ARGS, MAX_ARGS, \
+		SYMBOL_NAME, \
+		HELP_ARGS, \
+		HELP_BODY \
+	};
+
+#define DECLARE_FUNC_0(FUNC_PTR, SYMBOL_NAME, HELP_BODY) \
+    DECLARE_FUNC(FUNC_PTR, 0, 0, SYMBOL_NAME, "", HELP_BODY)
+
+#define DECLARE_INLINE(META_NAME, RECEIVER, MIN_ARGS, MAX_ARGS, SYMBOL_NAME, HELP_ARGS, HELP_BODY) \
+	const static FUNC_META META_NAME = { \
+		0, RECEIVER, MIN_ARGS, MAX_ARGS, \
+		SYMBOL_NAME, \
+		HELP_ARGS, \
+		HELP_BODY \
+	};
+
+#define ASSERT_ARG(i, PRED, TYPE) \
+    if (!PRED(FV[i])) { \
+        return make_exception("expects <" TYPE "> at argument %lld", (INT)i+1); \
+    }
+
+#define ASSERT_ALL(ASSERTION) \
+        for (INT i = 0; i < FC; i++) { \
+            ASSERTION(i); \
+        }
+#define ASSERT_NUMBERP(i) ASSERT_ARG(i, NUMBERP, "number")
+#define ASSERT_INTP(i) ASSERT_ARG(i, INTP, "integer")
+#define ASSERT_CHARP(i) ASSERT_ARG(i, CHARP, "character")
+#define ASSERT_STRINGP(i) ASSERT_ARG(i, STRINGP, "string")
+#define ASSERT_BOOLP(i) ASSERT_ARG(i, BOOLP, "boolean")
+#define ASSERT_CONSP(i) ASSERT_ARG(i, CONSP, "pair")
+#define ASSERT_LISTP(i) ASSERT_ARG(i, LISTP, "list")
+#define ASSERT_FUNCP(i) ASSERT_ARG(i, FUNCP, "func")
+#define ASSERT_KEYWORDP(i) ASSERT_ARG(i, KEYWORDP, "keyword")
+#define ASSERT_RECORDP(i) ASSERT_ARG(i, RECORDP, "record")
+#define ASSERT_CONTINUATIONP(i) ASSERT_ARG(i, REIFIED_CONTINUATIONP, "continuation")
+#define ASSERT_STACK_FRAMEP(i) ASSERT_ARG(i, STACK_FRAMEP, "stack-frame")
+#define ASSERT_NAMEP(i) ASSERT_ARG(i, NAMEP, "symbol")
+#define ASSERT_VECTORP(i) ASSERT_ARG(i, VECTORP, "vector")
+
+#define ASSERT_PORTP(i, IO, RW) \
+    if (!PORTP(FV[i]) || GET_CHAR(GET_PORT(FV[i])->mode_ch) != RW) { \
+        return make_exception("expects <" IO "-port> at argument %lld", (INT)i+1); \
+    }
+
+#define ASSERT_INPUT_PORTP(i) ASSERT_PORTP(i, "input", 'r')
+#define ASSERT_OUTPUT_PORTP(i) ASSERT_PORTP(i, "output", 'w')
+
+extern void die(const char *msg) __attribute__((noreturn));
+
+extern CELL register_func(const FUNC_META *);
+
+extern void register_inline(const FUNC_META *);
+
+extern int64_t proper_list_length(CELL list);
+
+// eval.c
 extern CELL internal_compile(CELL sexpr);
+
 extern CELL internal_eval(CELL compiled_sexpr, CELL env);
+
 extern CELL internal_compile_eval(CELL sexpr);
 
+// ---------------------------------------------------------------------
+// Literal constructors
+static inline CELL make_char(CHAR ch) {
+    CELL cell = {.as_bits = (uint64_t) T_CHAR << 45 | (uint64_t) (uint8_t) ch};
+    return cell;
+}
 
-//=========================================================================
-// MACROS
-//=========================================================================
-typedef uintptr_t LITERAL;
-#define AS_LITERAL(cell) ((LITERAL)(cell))
-#define LITERAL_BIT       0x0000000000000001
-#define LITERAL_TYPE_MASK 0x000000000000000e
-#define LITERAL_TYPE_SHIFT 1
-#define LITERAL_VALUE_SHIFT 4
-#define LITERAL_INT_MASK  0xfffffffffffffff0
-#define LITERAL_CHAR_MASK 0x0000000000000ff0
-#define LITERAL_BOOL_MASK 0x0000000000000010
-#define LITERAL_SLOT_MASK 0xfffffffffffffff0
+static inline CELL make_slot(SLOT slot) {
+    CELL cell = {.as_bits = (uint64_t) T_SLOT << 45 | (uint64_t) (uint16_t) slot};
+    return cell;
+}
 
-#define WISP_INT_BITS 60
-#define WISP_MAX_INT  0x07ffffffffffffff
-#define WISP_MIN_INT -0x0800000000000000
+static inline CELL make_bool(bool b) {
+    return b ? V_TRUE : V_FALSE;
+}
 
-// no offset makes debugging easier
-#define POINTER_TYPE_OFFSET 0x00
+static inline CELL make_indirect_tag(TYPEID type) {
+    CELL cell = {.as_bits = (uint64_t) T_INDIRECT_TAG << 45 | (uint64_t) type};
+    return cell;
+}
 
-// null is a slightly special case
-#define T_NULL             0x00  // the empty list
+static inline CELL make_float(FLOAT f) {
+    CELL cell = {.as_float = f};
+    cell.as_bits += FLOAT_OFFSET;
+    return cell;
+}
 
-// TODO - we should move to a NaN-boxed encoding instead
-// literal types
-#define T_VOID             0x01  // for functions that don't return a value
-#define T_UNDEFINED        0x02  // unbound names
-#define T_EMPTY            0x03  // unbound arguments / uninitialised storage
-#define T_BOOL             0x04
-#define T_CHAR             0x05
-#define T_INT              0x06
-#define T_SLOT             0x07
+static inline CELL make_int(INT i) {
+    CELL cell = {.as_bits = (uint64_t) i | 0xffff000000000000};
+    return cell;
+}
 
-// indirect types
-#define T_FLOAT            0x08
-#define T_STRING           0x09
-#define T_NAME             0x0a
-#define T_CONS             0x0b
-#define T_FUNC             0x0c
-#define T_COMPILED_LAMBDA  0x0d
-#define T_CLOSURE          0x0e
-#define T_VECTOR           0x0f
-#define T_EXCEPTION        0x10
-#define T_ENV              0x11
-#define T_RELOC            0x12
-#define T_REIFIED_CONTINUATION 0x13
-#define T_STACK_FRAME      0x14
-#define T_PORT             0x15
-#define T_RECORD           0x16
-#define T_KEYWORD          0x17
-#define T_DB_CONNECTION    0x18
-#define T_DB_RESULT        0x19
+// ---------------------------------------------------------------------
+// Object constructors (pointer tagged)
+extern CELL make_cons(CELL car, CELL cdr);
 
-#define ALIGN_BYTES        (1<<LITERAL_VALUE_SHIFT)
-#define ALIGN_MASK         (ALIGN_BYTES-1)
-#define ALIGN_SIZE(v)      ((size_t)((v) + ALIGN_MASK) & ~ALIGN_MASK)
-#define ALIGN_SIZE_DOWN(v) ((size_t)(v) & ~ALIGN_MASK)
-#define ALIGN_PTR(p)       ((void*)((uintptr_t)((p) + ALIGN_MASK) & ~ALIGN_MASK))
-#define ALIGN_PTR_DOWN(v)  ((void*)((uintptr_t)(p) & ~ALIGN_MASK))
+extern CELL make_closure(CELL compiled_lambda, CELL env);
 
-#define MAKE_CELL(v) ((CELL)(v))
-#define MAKE_POINTER(v) ((CELL)(v))
-#define MAKE_LITERAL(t,lit) \
-	MAKE_CELL( \
-		LITERAL_BIT \
-		| (t)             << LITERAL_TYPE_SHIFT \
-		| AS_LITERAL(lit) << LITERAL_VALUE_SHIFT \
-	)
+extern CELL make_reified_continuation(CELL cont);
 
-#define V_NULL MAKE_POINTER(0)
-#define V_VOID MAKE_LITERAL(T_VOID, 0)
-#define V_UNDEFINED MAKE_LITERAL(T_UNDEFINED, 0)
-#define V_EMPTY MAKE_LITERAL(T_EMPTY, 0)
-#define V_FALSE MAKE_LITERAL(T_BOOL, 0)
-#define V_TRUE  MAKE_LITERAL(T_BOOL, 1)
+extern CELL make_name(const char *name);
 
-#define IS_NULL(cell) (AS_LITERAL(cell) == 0)
-#define NULLP(cell) IS_NULL(cell)
-#define IS_POINTER(cell) (!IS_NULL(cell) && ((AS_LITERAL(cell) & LITERAL_BIT) == 0))
-#define IS_LITERAL(cell) ((AS_LITERAL(cell) & LITERAL_BIT) != 0)
+extern CELL make_name_counted(const char *name, INT len);
 
-#define GET_LITERAL_TYPE(cell) ( \
-	(TYPEID)( \
-		(AS_LITERAL(cell) & LITERAL_TYPE_MASK) >> LITERAL_TYPE_SHIFT \
-	) \
-)
+extern CELL make_name_from_string(CELL string);
 
-#define GET_POINTER_TYPE(cell) ( \
-	(TYPEID)( \
-		(cell)->header.type + POINTER_TYPE_OFFSET \
-	) \
-)
+extern CELL make_name_gensym();
 
-#define SET_POINTER_TYPE(cell, t) ( \
-	(cell)->header.type = (t) - POINTER_TYPE_OFFSET \
-)
-	
-#define GET_TYPE(cell) ( \
-	(TYPEID)( \
-		IS_NULL(cell)    ? T_NULL : \
-		IS_LITERAL(cell) ? GET_LITERAL_TYPE(cell) : \
-		                   GET_POINTER_TYPE(cell) \
-	) \
-)
+extern CELL make_compiled_lambda(bool is_macro, INT argc, bool want_rest, INT max_slot, INT depth, CELL body);
 
-#define GET_BOOL(cell) ((BOOL)((AS_LITERAL(cell) & LITERAL_BOOL_MASK) >> LITERAL_VALUE_SHIFT))
-#define GET_CHAR(cell) ((CHAR)((AS_LITERAL(cell) & LITERAL_CHAR_MASK) >> LITERAL_VALUE_SHIFT))
-#define GET_INT(cell)  (((INT)(AS_LITERAL(cell) & LITERAL_INT_MASK)) >> LITERAL_VALUE_SHIFT)
-#define GET_SLOT(cell) ((SLOT)((AS_LITERAL(cell) & LITERAL_SLOT_MASK) >> LITERAL_VALUE_SHIFT))
+extern CELL make_func(const char *name, const char *help_args, const char *help_body, FUNC_ENTRY entry, LABEL receiver,
+                      INT min_args, INT max_args);
 
-#define GET_FLOAT(cell)     ((cell)->v_float.value)
-#define GET_STRING(cell)    (&(cell)->v_string)
-#define GET_NAME(cell)      (&(cell)->v_name)
-#define GET_KEYWORD(cell)   (&(cell)->v_keyword)
-#define GET_CONS(cell)      (&(cell)->v_cons)
-#define GET_FUNC(cell)      (&(cell)->v_func)
-#define GET_COMPILED_LAMBDA(cell) (&(cell)->v_compiled_lambda)
-#define GET_CLOSURE(cell)   (&(cell)->v_closure)
-#define GET_EXCEPTION(cell) (&(cell)->v_exception)
-#define GET_VECTOR(cell)    (&(cell)->v_vector)
-#define GET_ENV(cell)       (&(cell)->v_env)
-#define GET_RELOC(cell)     ((cell)->v_reloc.reloc)
-#define GET_REIFIED_CONTINUATION(cell) (&(cell)->v_reified_continuation)
-#define GET_STACK_FRAME(cell) (&(cell)->v_stack_frame)
-#define GET_GENERIC_RESOURCE(cell) (&(cell)->v_generic_resource)
-#define GET_PORT(cell)      (&(cell)->v_port)
-#define GET_DB_CONNECTION(cell)  (&(cell)->v_db_connection)
-#define GET_DB_RESULT(cell)      (&(cell)->v_db_result)
-#define GET_RECORD(cell)    (&(cell)->v_record)
+extern CELL make_exception(const char *fmt, ...);
 
-#define SET_BOOL(cell, v)  ((cell)=MAKE_LITERAL(T_BOOL, v))
-#define SET_CHAR(cell, v)  ((cell)=MAKE_LITERAL(T_CHAR, v))
-#define SET_INT(cell, v)   ((cell)=MAKE_LITERAL(T_INT, v))
-#define SET_SLOT(cell, v)  ((cell)=MAKE_LITERAL(T_SLOT, v))
-#define SET_FLOAT(cell, v) ((cell)->v_float.value = v)
+// ---------------------------------------------------------------------
+// Object constructors (indirect tagged)
+// make_reloc?
+// make_env?
+extern CELL make_stack_frame(INT len, LABEL pc, CELL env, CELL cont);
 
-#define HAS_LITERAL_TYPE(cell,t) \
-		(((AS_LITERAL(cell)) & (LITERAL_BIT | LITERAL_TYPE_MASK)) == \
-                               (LITERAL_BIT | (t << LITERAL_TYPE_SHIFT)))
+extern CELL make_raw_string(INT k);
 
-#define VOIDP(cell)      (HAS_LITERAL_TYPE((cell), T_VOID))
-#define UNDEFINEDP(cell) (HAS_LITERAL_TYPE((cell), T_UNDEFINED))
-#define EMPTYP(cell)     (HAS_LITERAL_TYPE((cell), T_EMPTY))
-#define BOOLP(cell)      (HAS_LITERAL_TYPE((cell), T_BOOL))
-#define CHARP(cell)      (HAS_LITERAL_TYPE((cell), T_CHAR))
-#define INTP(cell)       (HAS_LITERAL_TYPE((cell), T_INT))
-#define SLOTP(cell)      (HAS_LITERAL_TYPE((cell), T_SLOT))
+extern CELL make_raw_immutable_string(INT k);
 
-#define HAS_POINTER_TYPE(cell,t) \
-    (IS_POINTER(cell) && GET_POINTER_TYPE(cell) == t)
+extern CELL make_string_counted(const char *string, INT len);
 
-#define FLOATP(cell)                (HAS_POINTER_TYPE((cell), T_FLOAT))
-#define STRINGP(cell)               (HAS_POINTER_TYPE((cell), T_STRING))
-#define NAMEP(cell)                 (HAS_POINTER_TYPE((cell), T_NAME))
-#define KEYWORDP(cell)              (HAS_POINTER_TYPE((cell), T_KEYWORD))
-#define CONSP(cell)                 (HAS_POINTER_TYPE((cell), T_CONS))
-#define FUNCP(cell)                 (HAS_POINTER_TYPE((cell), T_FUNC))
-#define COMPILED_LAMBDAP(cell)      (HAS_POINTER_TYPE((cell), T_COMPILED_LAMBDA))
-#define CLOSUREP(cell)              (HAS_POINTER_TYPE((cell), T_CLOSURE))
-#define EXCEPTIONP(cell)            (HAS_POINTER_TYPE((cell), T_EXCEPTION))
-#define VECTORP(cell)               (HAS_POINTER_TYPE((cell), T_VECTOR))
-#define ENVP(cell)                  (HAS_POINTER_TYPE((cell), T_ENV))
-#define RELOCP(cell)                (HAS_POINTER_TYPE((cell), T_RELOC))
-#define REIFIED_CONTINUATIONP(cell) (HAS_POINTER_TYPE((cell), T_REIFIED_CONTINUATION))
-#define STACK_FRAMEP(cell)          (HAS_POINTER_TYPE((cell), T_STACK_FRAME))
-#define PORTP(cell)                 (HAS_POINTER_TYPE((cell), T_PORT))
-#define DB_CONNECTIONP(cell)        (HAS_POINTER_TYPE((cell), T_DB_CONNECTION))
-#define DB_RESULTP(cell)            (HAS_POINTER_TYPE((cell), T_DB_RESULT))
-#define RECORDP(cell)               (HAS_POINTER_TYPE((cell), T_RECORD))
+extern CELL make_immutable_string_counted(const char *string, INT len);
 
-#define NUMBERP(cell)  (INTP(cell) || FLOATP(cell))
-#define LAMBDAP(cell)  (CONSP(cell) && EQP(CAR(cell), V_LAMBDA))
-#define ATOMP(cell)    (!CONSP(cell))
-#define FALSEP(cell)   (BOOLP(cell) && GET_BOOL(cell) == 0)
-#define TRUEP(cell)    (!FALSEP(cell))
-#define MKBOOL(test)   (test ? V_TRUE : V_FALSE)
+extern CELL make_string(const char *string);
 
-#define EQP(c1,c2) (AS_LITERAL(c1) == AS_LITERAL(c2))
+extern CELL make_immutable_string(const char *string);
 
-#define CAR(cell) (GET_CONS(cell)->car)
-#define CDR(cell) (GET_CONS(cell)->cdr)
+extern CELL make_immutable_string_from_string(CELL string);
 
-#define GET_BINDING(cell)      (GET_NAME(cell)->binding)
-#define DEFINED_BINDING(cell)  (!UNDEFINEDP(GET_BINDING(cell)))
-#define NON_NULL_BINDING(cell) (!UNDEFINEDP(GET_BINDING(cell)) && !NULLP(GET_BINDING(cell)))
+extern CELL make_string_filled(INT k, CHAR ch);
 
-#define make_char(ch)    MAKE_LITERAL(T_CHAR, (ch))
-#define make_int(i)      MAKE_LITERAL(T_INT, (i))
-#define make_slot(slot)  MAKE_LITERAL(T_SLOT, (slot))
+extern CELL make_keyword_counted(const char *keyword, INT len);
 
-// handy numeric conversions
-#define GET_NUMBER_AS_FLOAT(v) (FLOATP(v) ? GET_FLOAT(v) : (FLOAT) GET_INT(v))
+extern CELL make_keyword_from_string(CELL string);
 
-#define FC    (GET_ENV(frame)->count)
-#define FV    (GET_ENV(frame)->cells)
-#define FV0   (FV[0])
-#define FV1   (FV[1])
-#define FV2   (FV[2])
-#define FV3   (FV[3])
-#define FV4   (FV[4])
-#define FV5   (FV[5])
-#define FV6   (FV[6])
-#define FV7   (FV[7])
-#define FV8   (FV[8])
-#define FV9   (FV[9])
+extern CELL make_vector_uninited(INT len);
 
-#include "gc.h"
+extern CELL make_vector_inited(INT len, CELL init);
 
+extern CELL make_record(INT len);
+
+extern CELL make_record_uninited(INT len);
+
+// make_generic_resource?
+extern CELL make_port(char mode, FILE *fp, CELL path);
+
+extern CELL make_db_connection(void *handle);
+
+extern CELL make_db_result(void *handle);

@@ -1,20 +1,25 @@
+/*
 #include "wisp.h"
+#include "gc.h"
+#include "heap.h"
 #include "vm.h"
 #include "env.h"
 
-#define VM_BRANCH_IF_FALSE  0    
-#define VM_BRANCH           1    
-#define VM_LIT              2    
-#define VM_PUSH             3    
-#define VM_SET_GLOBAL       4    
-#define VM_GET_GLOBAL       5    
-#define VM_SET_SLOT         6    
-#define VM_GET_SLOT         7    
-#define VM_MAKE_CLOSURE     8    
-#define VM_RETURN           9    
-#define VM_VOID             10   
-#define VM_HALT             11   
-#define VM_CALL             12   
+// TODO - this whole file needs to be revisited
+
+static const int VM_BRANCH_IF_FALSE = 0;
+static const int VM_BRANCH          = 1;
+static const int VM_LIT             = 2;
+static const int VM_PUSH            = 3;
+static const int VM_SET_GLOBAL      = 4;
+static const int VM_GET_GLOBAL      = 5;
+static const int VM_SET_SLOT        = 6;
+static const int VM_GET_SLOT        = 7;
+static const int VM_MAKE_CLOSURE    = 8;
+static const int VM_RETURN          = 9;
+static const int VM_VOID            = 10;
+static const int VM_HALT            = 11;
+static const int VM_CALL            = 12;
 
 static CELL stack = V_NULL;
 static CELL env   = V_NULL;
@@ -106,13 +111,13 @@ CELL func_vm_run(CELL frame)
             int argc = GET_INT(data[pc++]);
 
             if (FUNCP(value)) {
-                if (argc < GET_FUNC(value)->min_args) {
+                if (argc < GET_INT(GET_FUNC(value)->min_args)) {
                     gc_unroot();
-                    return make_exception("%s: too few arguments", GET_FUNC(value)->name);
+                    return make_exception("%s: too few arguments", GET_STRING(GET_FUNC(value)->name_str)->data);
                 }
-                else if (GET_FUNC(value)->max_args >= 0 && argc > GET_FUNC(value)->max_args) {
+                else if (GET_INT(GET_FUNC(value)->max_args) >= 0 && argc > GET_INT(GET_FUNC(value)->max_args)) {
                     gc_unroot();
-                    return make_exception("%s: too many arguments", GET_FUNC(value)->name);
+                    return make_exception("%s: too many arguments", GET_STRING(GET_FUNC(value)->name_str)->data);
                 }
                 else {
                     // this consumes heap on every function invocation
@@ -124,11 +129,15 @@ CELL func_vm_run(CELL frame)
                     // usually l_receive_args_for_func_direct
                     // JUMP(label_info[GET_FUNC(value)->receiver].direct);
 
-                    const CELL result = (*GET_FUNC(value)->func_entry)(frame);
+                    FUNC *p = GET_FUNC(value);
+                    INT func_index =  GET_INT(p->func_index);
+                    FUNC_ENTRY func_entry = func_entries[func_index];
+                    const CELL result = (*func_entry)(frame);
 
                     if (EXCEPTIONP(result)) {
-                        if (!GET_EXCEPTION(result)->source) {
-                            GET_EXCEPTION(result)->source = GET_FUNC(value)->name;
+                        EXCEPTION *exn= GET_EXCEPTION(result);
+                        if (NULLP(GET_EXCEPTION(result)->source_str)) {
+                            GET_EXCEPTION(result)->source_str = GET_FUNC(value)->name_str;
                         }
                         gc_unroot();
                         return result;
@@ -178,3 +187,4 @@ void vm_register_symbols()
 {
     register_func("vm-run", func_vm_run, 2, 2);
 }
+*/

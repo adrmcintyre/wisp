@@ -1,152 +1,150 @@
 #include "wisp.h"
+#include "gc.h"
 #include "bitwise.h"
 
 // IMPLEMENTS SRFI-60: "Integers as Bits"
 
 // --- Bitwise Operations ---
 
-#define GEN_BITWISE(fn, OPER) \
-CELL func_ ## fn(CELL frame) \
-{ \
-    /* figure out which domain we should be working in... */ \
-    TYPEID t = T_INT; \
-    int argi; \
-    for(argi = 0; argi < FC; ++argi) { \
-        TYPEID targ = GET_TYPE(FV[argi]); \
-        switch(t | targ << 8) { \
-        case T_INT    | T_INT    << 8: \
-        default: \
-            return make_exception("expects <integer> arguments"); \
+#define GEN_BITWISE(FUNC_PTR, SYMBOL_NAME, HELP_BODY, INIT, BIT_OP) \
+    DECLARE_FUNC( \
+        FUNC_PTR, 0, -1, \
+        SYMBOL_NAME, \
+        "integer ...", \
+        "Returns the bitwise " HELP_BODY " of all its arguments." \
+        " Returns " #INIT " if called with no arguments." \
+    ) \
+    CELL FUNC_PTR(CELL frame) { \
+        ASSERT_ALL(ASSERT_INTP); \
+        INT result = INIT; \
+        for (INT argi = 0; argi < FC; ++argi) { \
+            result = result BIT_OP GET_INT(FV[argi]); \
         } \
-    } \
- \
-    CELL result = V_EMPTY; \
-    switch(t) { \
-    /* all args are INT */ \
-    case T_INT: \
-        { \
-            int argi = 0; \
-            const CELL arg = FV[argi++]; \
-            INT i = GET_INT(arg); \
-            while(argi < FC) { \
-                const CELL arg = FV[argi++]; \
-                i = i OPER (INT)GET_INT(arg); \
-            } \
-            result = make_int(i); \
-        } \
-        break; \
-    } \
-    return result; \
-}
-
-GEN_BITWISE(bitwise_and, &);
-GEN_BITWISE(bitwise_ior, |);
-GEN_BITWISE(bitwise_xor, ^);
-
-CELL func_bitwise_not(CELL frame)
-{
-    if (!INTP(FV0)) {
-        return make_exception("expects <integer> argument");
+        return make_int(result); \
     }
-    const INT n = GET_INT(FV0);
-    const INT result = ~n;
 
+GEN_BITWISE(func_bitwise_and, "bitwise-and|logand", "AND", -1, &)
+GEN_BITWISE(func_bitwise_ior, "bitwise-ior|logior", "OR", 0, |)
+GEN_BITWISE(func_bitwise_xor, "bitwise-xor|logxor", "XOR", 0, ^)
+
+DECLARE_FUNC(
+    func_bitwise_not, 1, 1,
+    "bitwise-not|lognot",
+    "num:integer",
+    "Returns the bitwise NOT of <num>."
+)
+
+CELL func_bitwise_not(CELL frame) {
+    ASSERT_INTP(0);
+    const INT num = GET_INT(FV0);
+    const INT result = ~num;
     return make_int(result);
 }
 
-CELL func_bitwise_merge(CELL frame)
-{
-    if (! (INTP(FV0) && INTP(FV1) && INTP(FV2)) ) {
-        return make_exception("expects <integer> arguments");
-    }
-    const INT mask = GET_INT(FV0);
-    const INT n0 = GET_INT(FV1);
-    const INT n1 = GET_INT(FV2);
-    const INT result
-        = (mask & n0)
-        | (~mask & n1);
+DECLARE_FUNC(
+    func_bitwise_merge, 3, 3,
+    "bitwise-merge|bitwise-merge",
+    "if:integer then:integer else:integer",
+    "Returns the bitwise \"if\" of its arguments. For each bit position,"
+    " if <if>'s bit is 1 the result bit is copied from <then>, otherwise"
+    " from <else>."
+)
 
+CELL func_bitwise_merge(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    ASSERT_INTP(2);
+    const INT if_bits = GET_INT(FV0);
+    const INT then_bits = GET_INT(FV1);
+    const INT else_bits = GET_INT(FV2);
+    const INT result = (if_bits & then_bits) | (~if_bits & else_bits);
     return make_int(result);
 }
 
-CELL func_any_bits_setp(CELL frame)
-{
-    if (! (INTP(FV0) && INTP(FV1)) ) {
-        return make_exception("expects <integer> arguments");
-    }
-    const INT j = GET_INT(FV0);
-    const INT k = GET_INT(FV1);
+DECLARE_FUNC(
+    func_any_bits_setp, 2, 2,
+    "any-bits-set?|logtest",
+    "num1:integer num2:integer",
+    "Returns #t if <num1> or <num2> have any 1-bits in common, otherwise #f."
+    " I.e. tests if (bitwise-and <num1> <num2>) is non-zero."
+)
 
-    return MKBOOL(
-        j & k
-    );
+CELL func_any_bits_setp(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    const INT num1 = GET_INT(FV0);
+    const INT num2 = GET_INT(FV1);
+    return make_bool(num1 & num2);
 }
 
 
 // --- Integer Properties ---
 
-// Returns the number of bits in integer n.
-// If integer is positive, the 1-bits in its binary representation are counted.
-// If negative, the 0-bits in its two's-complement binary representation are counted.
-// If 0, 0 is returned.
-CELL func_bit_count(CELL frame)
-{
-    if (! (INTP(FV0))) {
-        return make_exception("expects <integer> argument");
-    }
-    INT n = GET_INT(FV0);
+DECLARE_FUNC(
+    func_bit_count, 1, 1,
+    "bit-count|logcount",
+    "num:integer",
+    "Returns the number of 1-bits in <num> if it is positive, or"
+    " the number of 0-bits if negative. Returns 0 if <num> is 0."
+)
+
+CELL func_bit_count(CELL frame) {
+    ASSERT_INTP(0);
+    INT num = GET_INT(FV0);
     INT count = 0;
-    if (n < 0) {
-        for( ; n < -1; n >>= 1) {
-            if (! (n & 1)) ++count;
+    if (num < 0) {
+        for (; num < -1; num >>= 1) {
+            if (!(num & 1)) ++count;
         }
-    }
-    else {
-        for( ; n > 0; n >>= 1) {
-            if (n & 1) ++count;
+    } else {
+        for (; num > 0; num >>= 1) {
+            if (num & 1) ++count;
         }
     }
     return make_int(count);
 }
 
-static INT internal_integer_length(INT n)
-{
-    INT count = 0;
-    if (n < 0) {
-        ++count;
-        for( ; n < -1; n >>= 1) {
-            ++count;
+static INT internal_integer_length(INT num) {
+    INT len = 0;
+    if (num < 0) {
+        ++len;
+        for (; num < -1; num >>= 1) {
+            ++len;
+        }
+    } else {
+        for (; num > 0; num >>= 1) {
+            ++len;
         }
     }
-    else {
-        for( ; n > 0; n >>= 1) {
-            ++count;
-        }
-    }
-    return count;
+    return len;
 }
 
-// Returns the number of bits neccessary to represent n.
-CELL func_integer_length(CELL frame)
-{
-    if (! (INTP(FV0))) {
-        return make_exception("expects <integer> argument");
-    }
-    INT n = GET_INT(FV0);
-    const INT count = internal_integer_length(n);
+DECLARE_FUNC(
+    func_integer_length, 1, 1,
+    "integer-length", "num:integer",
+    "Returns the number of bits needed to represent <num>."
+)
+
+CELL func_integer_length(CELL frame) {
+    ASSERT_INTP(0);
+    const INT num = GET_INT(FV0);
+    const INT count = internal_integer_length(num);
     return make_int(count);
 }
 
-// Returns the number of factors of two of integer n.
-// This value is also the bit-index of the least-significant `1' bit in n.
-CELL func_first_set_bit(CELL frame)
-{
-    if (! (INTP(FV0))) {
-        return make_exception("expects <integer> argument");
-    }
-    INT n = GET_INT(FV0);
+DECLARE_FUNC(
+    func_first_set_bit, 1, 1,
+    "first-set-bit|log2-binary-factors",
+    "num:integer",
+    "Returns the index of the least-significant '1' bit in <num>."
+    " This is also the number of factors of 2 in <num>."
+)
+
+CELL func_first_set_bit(CELL frame) {
+    ASSERT_INTP(0);
+    INT num = GET_INT(FV0);
     INT count = 0;
-    for( ; !(n & 1); n >>= 1) {
+    for (; !(num & 1); num >>= 1) {
         ++count;
     }
     return make_int(count);
@@ -155,220 +153,294 @@ CELL func_first_set_bit(CELL frame)
 
 // --- Bit Within Word ---
 
-CELL func_bit_setp(CELL frame)
-{
-    if (! (INTP(FV0) && INTP(FV1)) ) {
-        return make_exception("expects <integer> arguments");
-    }
-    const INT index = GET_INT(FV0);
-    const INT n = GET_INT(FV1);
+DECLARE_FUNC(
+    func_bit_setp, 2, 2,
+    "bit-set?|logbit?",
+    "i:integer num:integer",
+    "Returns #t if the bit at index <i> of <num> is set, otherwise #f."
+)
 
-    return MKBOOL(
-        n & 1LL << index
-    );
+CELL func_bit_setp(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    const INT i = GET_INT(FV0);
+    const INT num = GET_INT(FV1);
+    if (!(0 <= i && i < 48)) {
+        return make_exception("index out of range");
+    }
+
+    const INT mask = (INT) 1 << i;
+    return make_bool(num & mask);
 }
-    
-CELL func_copy_bit(CELL frame)
-{
-    if (! (INTP(FV0) && INTP(FV1) && BOOLP(FV2)) ) {
-        return make_exception("expects <integer>, <integer>, <bool> arguments");
-    }
-    const INT index = GET_INT(FV0);
-    const INT from = GET_INT(FV1);
-    const INT bit = GET_BOOL(FV2);
-    const INT result = 
-        bit ? from | 1LL << index
-            : from & ~(1LL << index);
 
+DECLARE_FUNC(
+    func_copy_bit, 3, 3,
+    "copy-bit", "i:integer num:integer bit:boolean",
+    "Returns <num> with the bit at index <i> set to 1 if <bit> is #t,"
+    " or 0 if <bit> is #f."
+)
+
+CELL func_copy_bit(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    ASSERT_BOOLP(2);
+    const INT i = GET_INT(FV0);
+    const INT num = GET_INT(FV1);
+    const bool bit = GET_BOOL(FV2);
+    if (!(0 <= i && i < 48)) {
+        return make_exception("index out of range");
+    }
+    const INT mask = (INT) 1 << i;
+    const INT result = bit ? (num | mask) : (num & ~mask);
     return make_int(result);
 }
 
 
 // --- Field of Bits ---
 
-CELL func_bit_field(CELL frame)
-{
-    if ( !(INTP(FV0) && INTP(FV1) && INTP(FV2)) ) {
-        return make_exception("expects <integer> arguments");
-    }
-    const INT n = GET_INT(FV0);
+DECLARE_FUNC(
+    func_bit_field, 3, 3,
+    "bit-field", "num:integer start:integer end:integer",
+    "Returns the bits in <num> from indexes <start> up to but not including"
+    " <end>, with <start> at bit 0 of the result, and so forth."
+)
+
+CELL func_bit_field(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    ASSERT_INTP(2);
+    const INT num = GET_INT(FV0);
     const INT start = GET_INT(FV1);
     const INT end = GET_INT(FV2);
-    const INT result
-        = n >> start
-        & ((1LL << (end-start)) - 1);
-
+    if (!(0 <= start && start < 48)) {
+        return make_exception("start out of range");
+    }
+    if (!(start <= end)) {
+        return make_exception("end out of range");
+    }
+    const INT mask = ((INT) 1 << (end - start)) - 1;
+    const INT result = (num >> start) & mask;
     return make_int(result);
 }
-    
-CELL func_copy_bit_field(CELL frame)
-{
-    if ( !(INTP(FV0) && INTP(FV1) && INTP(FV2) && INTP(FV3)) ) {
-        return make_exception("expects <integer> arguments");
-    }
+
+DECLARE_FUNC(
+    func_copy_bit_field, 4, 4,
+    "copy-bit-field", "dest:integer source:integer start:integer end:integer",
+    "Returns <dest> with bits at indexes <start> up to but not including <end>"
+    " replaced by bits in <source> from indexes 0 and up."
+)
+
+CELL func_copy_bit_field(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    ASSERT_INTP(2);
+    ASSERT_INTP(3);
     const INT to = GET_INT(FV0);
     const INT from = GET_INT(FV1);
     const INT start = GET_INT(FV2);
     const INT end = GET_INT(FV3);
-    const INT result
-        = (to & ~((1LL << end) - (1LL << start)))
-        | ((from & ((1LL << (end-start)) - 1)) << start);
-
-    return make_int(result);
-}
-    
-CELL func_arithmetic_shift(CELL frame)
-{
-    if (!INTP(FV0) && INTP(FV1)) {
-        return make_exception("expects <integer> arguments");
+    if (!(0 <= start && start < 48)) {
+        return make_exception("start out of range");
     }
-    const INT n = GET_INT(FV0);
-    const INT count = GET_INT(FV1);
-    const INT result = 
-        (count > 0) ? n << count
-                    : n >> -count;
+    if (!(start <= end)) {
+        return make_exception("end out of range");
+    }
 
+    const INT mask = ((INT) 1 << end) - ((INT) 1 << start);
+    const INT result = (to & ~mask) | ((from << start) & mask);
     return make_int(result);
 }
 
-CELL func_rotate_bit_field(CELL frame)
-{
-    if ( !(INTP(FV0) && INTP(FV1) && INTP(FV2) && INTP(FV3)) ) {
-        return make_exception("expects <integer> arguments");
+DECLARE_FUNC(
+    func_arithmetic_shift, 4, 4,
+    "arithmetic-shift|ash",
+    "num:integer shift:integer",
+    "If <shift> is positive, returns <num> shifted left <shift> bits."
+    " If <shift> is negative, returns <num> shifted right -<shift> bits, "
+    " maintaining the sign bit."
+)
+
+CELL func_arithmetic_shift(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    const INT num = GET_INT(FV0);
+    const INT shift = GET_INT(FV1);
+    if (shift >= 48 || shift <= -48) {
+        return make_exception("shift out of range");
     }
-    const INT n = GET_INT(FV0);
-    INT count = GET_INT(FV1);
+
+    const INT result = (shift > 0) ? (num << shift) : (num >> -shift);
+    return make_int(result);
+}
+
+DECLARE_FUNC(
+    func_rotate_bit_field, 4, 4,
+    "rotate-bit-field", "num:integer shift:integer start:integer end:integer",
+    "Returns <num> with bits at indexes <start> up to but not including <end>"
+    " rotated left by <shift> bits if <shift> is positive, or rotated right"
+    " by -<shift> bits if negative."
+)
+
+CELL func_rotate_bit_field(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    ASSERT_INTP(2);
+    ASSERT_INTP(3);
+    const INT num = GET_INT(FV0);
+    INT shift = GET_INT(FV1);
     const INT start = GET_INT(FV2);
     const INT end = GET_INT(FV3);
 
-    if (count == 0) {
+    if (!(0 <= start && start < 48)) {
+        return make_exception("start out of range");
+    }
+    if (!(start <= end)) {
+        return make_exception("end out of range");
+    }
+
+    const INT width = end - start;
+    shift %= width;
+    if (shift < 0) {
+        shift += width;
+    }
+    if (shift == 0) {
         return FV0;
     }
-    if (count < 0) {
-        count += end-start;
-    }
 
-    // FIXME - I'm sure this could be simplified to use fewer shifts
-    INT seg = (n >> start) & ((1LL << (end-start)) - 1);
-    seg = ((seg << count) & ((1LL << (end-start)) - 1))
-        | ((seg >> (end-start - count)));
-    const INT result
-        = (n & ~((1LL << end) - (1LL << start)))
-        | (seg << start);
-
+    const INT field_mask = ((INT) 1 << end) - ((INT) 1 << start);
+    const INT field = field_mask & num;
+    const INT rotated_field =
+            (field_mask & (field << shift)) |
+            (field_mask & (field >> (width - shift)));
+    const INT result = (num & ~field_mask) | rotated_field;
     return make_int(result);
 }
 
-CELL func_reverse_bit_field(CELL frame)
-{
-    if ( !(INTP(FV0) && INTP(FV1) && INTP(FV2)) ) {
-        return make_exception("expects <integer> arguments");
-    }
-    const INT n = GET_INT(FV0);
+DECLARE_FUNC(
+    func_reverse_bit_field, 3, 3,
+    "reverse-bit-field", "num:integer start:integer end:integer",
+    "Returns <num> with bits at indexes <start> up to but not including <end>"
+    " reversed."
+)
+
+CELL func_reverse_bit_field(CELL frame) {
+    ASSERT_INTP(0);
+    ASSERT_INTP(1);
+    ASSERT_INTP(2);
+    const INT num = GET_INT(FV0);
     const INT start = GET_INT(FV1);
     const INT end = GET_INT(FV2);
 
-    INT seg = (n >> start) & ((1LL << (end-start)) - 1);
-    INT newseg = 0;
-    INT i;
-    for(i = start; i < end; ++i) {
-        newseg = (newseg << 1) | (seg & 1);
-        seg >>= 1;
+    if (!(0 <= start && start < 48)) {
+        return make_exception("start out of range");
+    }
+    if (!(start <= end)) {
+        return make_exception("end out of range");
     }
 
-    const INT result 
-        = (n & ((1LL << end) - (1LL << start)))
-        | (newseg << start);
+    const INT start_mask = ((INT) 1 << start);
+    const INT field_mask = ((INT) 1 << end) - start_mask;
 
+    INT field = num & field_mask;
+    INT rev_field = 0;
+    for (INT i = start; i < end; ++i) {
+        rev_field = (rev_field << 1) | (field & start_mask);
+        field >>= 1;
+    }
+    const INT result = (num & ~field_mask) | rev_field;
     return make_int(result);
 }
 
 
 // --- Bits as Booleans ---
 
-// integer->list returns a list of len booleans corresponding to each bit of the given integer.
-// #t is coded for each 1; #f for 0. The len argument defaults to (integer-length k).
-CELL func_integer2list(CELL frame)
-{
-    if ( !(INTP(FV0) && (FC==1 || INTP(FV1)))) {
-        return make_exception("expects <integer> arguments");
-    }
-    INT n = GET_INT(FV0);
-    INT len = (FC==2) ? GET_INT(FV1) : internal_integer_length(n);
+DECLARE_FUNC(
+    func_integer2list, 1, 2,
+    "integer->list",
+    "num:integer [len:integer]",
+    "Returns a list of booleans of length <len> corresponding to each bit"
+    " of <num>, with #t for 1 and #f for 0. If omitted <len> defaults to"
+    " (integer-length <num>). The least significant bit of <num> forms the"
+    " last bit of the result."
+)
 
-    CELL res = V_NULL;
-    for( ; len > 0; --len) {
-        res = make_cons(MKBOOL(n & 1), res);
-        n >>= 1;
+CELL func_integer2list(CELL frame) {
+    ASSERT_INTP(0);
+    if (FC == 2) {
+        ASSERT_INTP(1);
     }
-    return res;
+
+    INT num = GET_INT(FV0);
+    const INT len = (FC == 2) ? GET_INT(FV1) : internal_integer_length(num);
+
+    CELL result = V_NULL;
+    for (INT i = 0; i < len; i++) {
+        result = make_cons(make_bool(num & 1), result);
+        num >>= 1;
+    }
+
+    return result;
 }
 
-// list->integer returns an integer formed from the booleans in the list list, which must be
-// a list of booleans. A 1 bit is coded for each #t; a 0 bit for #f.
-CELL func_list2integer(CELL frame)
-{
-    CELL lis = FV0;
-    INT n = 0;
-    for(; CONSP(lis); lis = CDR(lis)) {
-        const CELL bit = CAR(lis);
+DECLARE_FUNC(
+    func_list2integer, 1, 1,
+    "list->integer", "bits:list",
+    "Returns an integer formed from the booleans in <bits>, with 1 for #t and 0"
+    " for #f. The last element of <bits> supplies the least-significant result bit."
+)
+
+CELL func_list2integer(CELL frame) {
+    ASSERT_LISTP(0);
+    CELL bits = FV0;
+    INT result = 0;
+    for (; CONSP(bits); bits = CDR(bits)) {
+        const CELL bit = CAR(bits);
         if (!BOOLP(bit)) {
-            return make_exception("expects <list> of <bool>s");
+            return make_exception("expects <list> of <boolean>");
         }
-        n = (n << 1) | TRUEP(bit);
+        result = (result << 1) | TRUEP(bit);
     }
-    return make_int(n);
+    if (!NULLP(bits)) {
+        return make_exception("expects <proper-list>");
+    }
+    return make_int(result);
 }
 
-// Returns the integer coded by the bool1 ... arguments.
-CELL func_booleans2integer(CELL frame)
-{
-    INT n = 0;
-    int argi;
-    for(argi = 0; argi < FC; ++argi) {
+DECLARE_FUNC(
+    func_booleans2integer, 0, -1,
+    "booleans->integer", "boolean ...",
+    "Returns an integer formed from the <boolean> arguments, with 1 for #t and 0"
+    " for #f. The last argument supplies the least-significant result bit."
+)
+
+CELL func_booleans2integer(CELL frame) {
+    ASSERT_ALL(ASSERT_BOOLP);
+    INT result = 0;
+    for (INT argi = 0; argi < FC; ++argi) {
         const CELL bit = FV[argi];
-        if (!BOOLP(bit)) {
-            return make_exception("expects <bool> arguments");
-        }
-        n = (n << 1) | TRUEP(bit);
+        result = (result << 1) | TRUEP(bit);
     }
-    return make_int(n);
+    return make_int(result);
 }
 
-void bitwise_register_symbols()
-{
-	register_func("bitwise-and",   func_bitwise_and,   1, -1);
-	register_func("logand",        func_bitwise_and,   1, -1);
-	register_func("bitwise-ior",   func_bitwise_ior,   1, -1);
-	register_func("logior",        func_bitwise_ior,   1, -1);
-	register_func("bitwise-xor",   func_bitwise_xor,   1, -1);
-	register_func("logxor",        func_bitwise_xor,   1, -1);
-	register_func("bitwise-not",   func_bitwise_not,   1, 1);
-	register_func("lognot",        func_bitwise_not,   1, 1);
-	register_func("bitwise-merge", func_bitwise_merge, 3, 3);
-	register_func("bitwise-if",    func_bitwise_merge, 3, 3);
-	register_func("any-bits-set?", func_any_bits_setp, 2, 2);
-	register_func("logtest",       func_any_bits_setp, 2, 2);
-
-    register_func("bit-count",      func_bit_count,      1, 1);
-    register_func("logcount",       func_bit_count,      1, 1);
-    register_func("integer-length", func_integer_length, 1, 1);
-    register_func("first-set-bit",  func_first_set_bit,  1, 1);
-    register_func("log2-binary-factors",  func_first_set_bit,  1, 1);
-
-    register_func("bit-set?",      func_bit_setp,      2, 2);
-    register_func("logbit?",       func_bit_setp,      2, 2);
-    register_func("copy-bit",      func_copy_bit,      3, 3);
-
-    register_func("bit-field",         func_bit_field,         3, 3);
-    register_func("copy-bit-field",    func_copy_bit_field,    4, 4);
-    register_func("arithmetic-shift",  func_arithmetic_shift,  2, 2);
-    register_func("ash",               func_arithmetic_shift,  2, 2);
-    register_func("rotate-bit-field",  func_rotate_bit_field,  4, 4);
-    register_func("reverse-bit-field", func_reverse_bit_field, 3, 3);
-
-    register_func("integer->list",     func_integer2list,     1, 2);
-    register_func("list->integer",     func_list2integer,     1, 1);
-    register_func("booleans->integer", func_booleans2integer, 1, -1);
+void bitwise_register_symbols() {
+    register_func(&meta_func_bitwise_and);
+    register_func(&meta_func_bitwise_ior);
+    register_func(&meta_func_bitwise_xor);
+    register_func(&meta_func_bitwise_not);
+    register_func(&meta_func_bitwise_merge);
+    register_func(&meta_func_any_bits_setp);
+    register_func(&meta_func_bit_count);
+    register_func(&meta_func_integer_length);
+    register_func(&meta_func_first_set_bit);
+    register_func(&meta_func_bit_setp);
+    register_func(&meta_func_copy_bit);
+    register_func(&meta_func_bit_field);
+    register_func(&meta_func_copy_bit_field);
+    register_func(&meta_func_arithmetic_shift);
+    register_func(&meta_func_rotate_bit_field);
+    register_func(&meta_func_reverse_bit_field);
+    register_func(&meta_func_integer2list);
+    register_func(&meta_func_list2integer);
+    register_func(&meta_func_booleans2integer);
 }
-
