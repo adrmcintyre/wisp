@@ -38,17 +38,16 @@ typedef struct struct_closure {
     CELL env;
 } CLOSURE;
 
-// FIXME - use a more concrete type for cont?
 typedef struct struct_reified_continuation {
     CELL cont;
     CELL pad_reloc;
 } REIFIED_CONTINUATION;
 
-typedef struct struct_name {
+typedef struct struct_symbol {
     CELL binding;
     CELL gensym;
     CELL name_str;
-} NAME;
+} SYMBOL;
 
 static const INT LAMBDA_FLAG_MACRO = 1 << 0;
 static const INT LAMBDA_FLAG_REST = 1 << 1;
@@ -163,7 +162,7 @@ union union_object {
     CONS v_cons;
     CLOSURE v_closure;
     REIFIED_CONTINUATION v_reified_continuation;
-    NAME v_name;
+    SYMBOL v_symbol;
     COMPILED_LAMBDA v_compiled_lambda;
     FUNC v_func;
     EXCEPTION v_exception;
@@ -198,7 +197,7 @@ union union_object {
 //        1 - cons
 //        2 - closure
 //        3 - reified continuation
-//        4 - name
+//        4 - symbol
 //        5 - compiled lambda
 //        6 - func
 //        7 - exception
@@ -288,7 +287,7 @@ static const TYPEID MIN_POINTER_TAG = 0x01;
 static const TYPEID T_CONS = 0x01;
 static const TYPEID T_CLOSURE = 0x02;
 static const TYPEID T_REIFIED_CONTINUATION = 0x03;
-static const TYPEID T_NAME = 0x04;
+static const TYPEID T_SYMBOL = 0x04;
 static const TYPEID T_COMPILED_LAMBDA = 0x05;
 static const TYPEID T_FUNC = 0x06;
 static const TYPEID T_EXCEPTION = 0x07;
@@ -299,7 +298,7 @@ static const TYPEID MAX_POINTER_TAG = 0x07;
 static const TYPEID T_CHAR = 0x08;
 static const TYPEID T_SLOT = 0x09;
 static const TYPEID T_EMPTY = 0x0a; // unbound arguments / uninitialised storage
-static const TYPEID T_UNDEFINED = 0x0b; // unbound names
+static const TYPEID T_UNDEFINED = 0x0b; // unbound symbols
 static const TYPEID T_VOID = 0x0c; // for functions that don't return a value
 static const TYPEID T_BOOL = 0x0d;
 static const TYPEID T_INDIRECT_TAG = 0x0e; // initial word indicating indirect type on indirectly tagged objects
@@ -400,7 +399,7 @@ static inline bool CONSP(CELL cell) { return HAS_POINTER_TAG(cell, T_CONS); }
 static inline bool LISTP(CELL cell) { return NULLP(cell) || HAS_POINTER_TAG(cell, T_CONS); }
 static inline bool CLOSUREP(CELL cell) { return HAS_POINTER_TAG(cell, T_CLOSURE); }
 static inline bool REIFIED_CONTINUATIONP(CELL cell) { return HAS_POINTER_TAG(cell, T_REIFIED_CONTINUATION); }
-static inline bool NAMEP(CELL cell) { return HAS_POINTER_TAG(cell, T_NAME); }
+static inline bool SYMBOLP(CELL cell) { return HAS_POINTER_TAG(cell, T_SYMBOL); }
 static inline bool COMPILED_LAMBDAP(CELL cell) { return HAS_POINTER_TAG(cell, T_COMPILED_LAMBDA); }
 static inline bool FUNCP(CELL cell) { return HAS_POINTER_TAG(cell, T_FUNC); }
 static inline bool EXCEPTIONP(CELL cell) { return HAS_POINTER_TAG(cell, T_EXCEPTION); }
@@ -482,9 +481,9 @@ static inline REIFIED_CONTINUATION *GET_REIFIED_CONTINUATION(CELL cell) {
     return &cell.as_object->v_reified_continuation;
 }
 
-static inline NAME *GET_NAME(CELL cell) {
-    cell.as_bits -= T_NAME;
-    return &cell.as_object->v_name;
+static inline SYMBOL *GET_SYMBOL(CELL cell) {
+    cell.as_bits -= T_SYMBOL;
+    return &cell.as_object->v_symbol;
 }
 
 static inline COMPILED_LAMBDA *GET_COMPILED_LAMBDA(CELL cell) {
@@ -607,7 +606,7 @@ typedef struct {
 #define ASSERT_RECORDP(i) ASSERT_ARG(i, RECORDP, "record")
 #define ASSERT_CONTINUATIONP(i) ASSERT_ARG(i, REIFIED_CONTINUATIONP, "continuation")
 #define ASSERT_STACK_FRAMEP(i) ASSERT_ARG(i, STACK_FRAMEP, "stack-frame")
-#define ASSERT_NAMEP(i) ASSERT_ARG(i, NAMEP, "symbol")
+#define ASSERT_SYMBOLP(i) ASSERT_ARG(i, SYMBOLP, "symbol")
 #define ASSERT_VECTORP(i) ASSERT_ARG(i, VECTORP, "vector")
 
 #define ASSERT_PORTP(i, IO, RW) \
@@ -673,13 +672,13 @@ extern CELL make_closure(CELL compiled_lambda, CELL env);
 
 extern CELL make_reified_continuation(CELL cont);
 
-extern CELL make_name(const char *name);
+extern CELL make_symbol(const char *name);
 
-extern CELL make_name_counted(const char *name, INT len);
+extern CELL make_symbol_counted(const char *name, INT len);
 
-extern CELL make_name_from_string(CELL string);
+extern CELL make_symbol_from_string(CELL string);
 
-extern CELL make_name_gensym();
+extern CELL make_symbol_gensym();
 
 extern CELL make_compiled_lambda(bool is_macro, INT argc, bool want_rest, INT max_slot, INT depth, CELL body);
 

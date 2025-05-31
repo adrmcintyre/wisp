@@ -45,11 +45,11 @@ CELL register_func(const FUNC_META *meta) {
     gc_root_1("register_func", result);
 
     for (const char *word = strtok(name, sep); word; word = strtok(0, sep)) {
-        result = make_name(name);
+        result = make_symbol(name);
         const CELL fn = make_func(
             name, meta->help_args, meta->help_body,
             meta->fn, receiver, meta->min_args, meta->max_args);
-        GET_NAME(result)->binding = fn;
+        GET_SYMBOL(result)->binding = fn;
     }
     gc_unroot();
     free(name);

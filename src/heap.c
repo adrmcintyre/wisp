@@ -7,15 +7,15 @@
 extern CELL gc_chain_resource(CELL resource);
 
 bool opt_case_sensitive = false;
-CELL g_interned_names = V_NULL;
+CELL g_interned_symbols = V_NULL;
 
 CELL make_cons(CELL car, CELL cdr) {
     gc_root_2("make_cons", car, cdr);
-    CELL v = gc_alloc(CONS);
-    CAR(v) = car;
-    CDR(v) = cdr;
+    CELL cons = gc_alloc(CONS);
+    CAR(cons) = car;
+    CDR(cons) = cdr;
     gc_unroot();
-    return v;
+    return cons;
 }
 
 CELL unsafe_make_list_1(CELL e1) {
@@ -59,8 +59,8 @@ CELL make_func(
     help_args_str = make_immutable_string(help_args);
     help_body_str = make_immutable_string(help_body);
 
-    CELL cell = gc_alloc(FUNC);
-    FUNC *p = GET_FUNC(cell);
+    CELL func = gc_alloc(FUNC);
+    FUNC *p = GET_FUNC(func);
     p->name_str = name_str;
     p->help_args_str = help_args_str;
     p->help_body_str = help_body_str;
@@ -71,7 +71,7 @@ CELL make_func(
     func_entries[func_index++] = func_entry;
 
     gc_unroot();
-    return cell;
+    return func;
 }
 
 CELL make_exception(const char *fmt, ...) {
@@ -86,112 +86,112 @@ CELL make_exception(const char *fmt, ...) {
     CELL message = make_immutable_string(buf);
     gc_root_1("make_exception", message);
 
-    CELL cell = gc_alloc(EXCEPTION);
-    EXCEPTION *p = GET_EXCEPTION(cell);
+    CELL exception = gc_alloc(EXCEPTION);
+    EXCEPTION *p = GET_EXCEPTION(exception);
     p->source_str = V_NULL;
     p->message_str = message;
 
     gc_unroot();
-    return cell;
+    return exception;
 }
 
 CELL make_raw_string(INT k) {
-    CELL cell = gc_alloc_extra(STRING, (size_t)(k+1));
-    STRING *p = GET_STRING(cell);
+    CELL string = gc_alloc_extra(STRING, (size_t)(k+1));
+    STRING *p = GET_STRING(string);
     p->immutable = V_FALSE;
     p->len = k;
     p->data[k] = '\0';
-    return cell;
+    return string;
 }
 
 CELL make_raw_immutable_string(INT k) {
-    CELL cell = gc_alloc_extra(STRING, (size_t)(k+1));
-    STRING *p = GET_STRING(cell);
+    CELL string = gc_alloc_extra(STRING, (size_t)(k+1));
+    STRING *p = GET_STRING(string);
     p->immutable = V_TRUE;
     p->len = k;
     p->data[k] = '\0';
-    return cell;
+    return string;
 }
 
 CELL make_string_counted(const char *s, INT len) {
-    CELL cell = make_raw_string(len);
-    memcpy(GET_STRING(cell)->data, s, (size_t)len);
-    return cell;
+    CELL string = make_raw_string(len);
+    memcpy(GET_STRING(string)->data, s, (size_t)len);
+    return string;
 }
 
 CELL make_immutable_string_counted(const char *s, INT len) {
-    CELL cell = make_raw_immutable_string(len);
-    memcpy(GET_STRING(cell)->data, s, (size_t)len);
-    return cell;
+    CELL string = make_raw_immutable_string(len);
+    memcpy(GET_STRING(string)->data, s, (size_t)len);
+    return string;
 }
 
 CELL make_string(const char *s) {
     size_t k = strlen(s);
-    CELL cell = make_raw_string((INT) k);
-    memcpy(GET_STRING(cell)->data, s, k);
-    return cell;
+    CELL string = make_raw_string((INT) k);
+    memcpy(GET_STRING(string)->data, s, k);
+    return string;
 }
 
 CELL make_immutable_string(const char *s) {
     size_t k = strlen(s);
-    CELL cell = make_raw_immutable_string((INT) k);
-    memcpy(GET_STRING(cell)->data, s, k);
-    return cell;
+    CELL string = make_raw_immutable_string((INT) k);
+    memcpy(GET_STRING(string)->data, s, k);
+    return string;
 }
 
-CELL make_immutable_string_from_string(CELL string) {
-    if (TRUEP(GET_STRING(string)->immutable)) {
-        return string;
+CELL make_immutable_string_from_string(CELL source) {
+    if (TRUEP(GET_STRING(source)->immutable)) {
+        return source;
     }
 
-    gc_root_1("make_immutable_string_from_string", string);
-    size_t len = strlen(GET_STRING(string)->data);
-    CELL cell = make_raw_immutable_string((INT) len);
-    memcpy(GET_STRING(cell)->data, GET_STRING(string)->data, len);
+    gc_root_1("make_immutable_string_from_string", source);
+    size_t len = strlen(GET_STRING(source)->data);
+    CELL dup = make_raw_immutable_string((INT) len);
+    memcpy(GET_STRING(dup)->data, GET_STRING(source)->data, len);
     gc_unroot();
-    return cell;
+    return dup;
 }
 
-CELL make_string_filled(INT k, CHAR ch) {
-    CELL cell = make_raw_string(k);
-    memset(GET_STRING(cell)->data, (ch == -1) ? ' ' : ch, (size_t)k);
-    return cell;
+CELL make_string_filled(INT len, CHAR ch) {
+    CELL string = make_raw_string(len);
+    memset(GET_STRING(string)->data, (ch == -1) ? ' ' : ch, (size_t)len);
+    return string;
 }
 
 CELL make_record_uninited(INT len) {
-    CELL cell = gc_alloc_extra(RECORD, (size_t)len * sizeof(CELL));
-    RECORD *p = GET_RECORD(cell);
+    CELL record = gc_alloc_extra(RECORD, (size_t)len * sizeof(CELL));
+    RECORD *p = GET_RECORD(record);
     p->len = len;
-    return cell;
+    return record;
 }
 
 CELL make_record(INT len) {
-    CELL cell = gc_alloc_extra(RECORD, (size_t)len * sizeof(CELL));
-    RECORD *p = GET_RECORD(cell);
+    CELL record = gc_alloc_extra(RECORD, (size_t)len * sizeof(CELL));
+    RECORD *p = GET_RECORD(record);
     p->len = len;
     for (INT i = 0; i < len; ++i) {
         p->data[i] = V_FALSE;
     }
-    return cell;
+    return record;
 }
 
 CELL make_vector_uninited(INT len) {
-    CELL cell = gc_alloc_extra(VECTOR, (size_t)len * sizeof(CELL));
-    VECTOR *p = GET_VECTOR(cell);
+    CELL vector = gc_alloc_extra(VECTOR, (size_t)len * sizeof(CELL));
+    VECTOR *p = GET_VECTOR(vector);
     p->len = len;
-    return cell;
+    return vector;
 }
 
 CELL make_vector_inited(INT len, CELL init) {
     gc_root_1("make_vector_inited", init);
-    CELL cell = gc_alloc_extra(VECTOR, (size_t)len * sizeof(CELL));
-    VECTOR *p = GET_VECTOR(cell);
+    CELL vector = gc_alloc_extra(VECTOR, (size_t)len * sizeof(CELL));
+    VECTOR *p = GET_VECTOR(vector);
     p->len = len;
     for (INT i = 0; i < len; ++i) {
         p->data[i] = init;
     }
     gc_unroot();
-    return cell;
+    return vector;
 }
 
 CELL make_compiled_lambda(
@@ -203,8 +203,8 @@ CELL make_compiled_lambda(
     CELL body
 ) {
     gc_root_1("make_compiled_lambda", body);
-    CELL cell = gc_alloc(COMPILED_LAMBDA);
-    COMPILED_LAMBDA *p = GET_COMPILED_LAMBDA(cell);
+    CELL lambda = gc_alloc(COMPILED_LAMBDA);
+    COMPILED_LAMBDA *p = GET_COMPILED_LAMBDA(lambda);
     INT flags = 0;
     if (is_macro) {
         flags |= LAMBDA_FLAG_MACRO;
@@ -218,107 +218,107 @@ CELL make_compiled_lambda(
     p->depth = make_int(depth);
     p->body = body;
     gc_unroot();
-    return cell;
+    return lambda;
 }
 
 CELL make_closure(CELL compiled_lambda, CELL env) {
     gc_root_2("make_closure", compiled_lambda, env);
-    CELL cell = gc_alloc(CLOSURE);
-    CLOSURE *p = GET_CLOSURE(cell);
+    CELL closure = gc_alloc(CLOSURE);
+    CLOSURE *p = GET_CLOSURE(closure);
     p->compiled_lambda = compiled_lambda;
     p->env = env;
     gc_unroot();
-    return cell;
+    return closure;
 }
 
-CELL make_reified_continuation(CELL cont) {
-    gc_root_1("make_reified_continuation", cont);
-    CELL cell = gc_alloc(REIFIED_CONTINUATION);
-    REIFIED_CONTINUATION *p = GET_REIFIED_CONTINUATION(cell);
-    p->cont = cont;
+CELL make_reified_continuation(CELL stack_frame) {
+    gc_root_1("make_reified_continuation", stack_frame);
+    CELL continuation = gc_alloc(REIFIED_CONTINUATION);
+    REIFIED_CONTINUATION *p = GET_REIFIED_CONTINUATION(continuation);
+    p->cont = stack_frame;
     gc_unroot();
-    return cell;
+    return continuation;
 }
 
 CELL make_stack_frame(INT len, LABEL pc, CELL env, CELL cont) {
     gc_root_2("make_stack_frame", env, cont);
-    CELL cell = gc_alloc_extra(STACK_FRAME, (size_t)len * sizeof(CELL));
-    STACK_FRAME *p = GET_STACK_FRAME(cell);
+    CELL frame = gc_alloc_extra(STACK_FRAME, (size_t)len * sizeof(CELL));
+    STACK_FRAME *p = GET_STACK_FRAME(frame);
     p->pc = make_int(pc);
     p->env = env;
     p->cont = cont;
     gc_unroot();
-    return cell;
+    return frame;
 }
 
 CELL make_port(char mode, FILE *fp, CELL path) {
     gc_root_1("make_port", path);
-    CELL cell = gc_alloc(PORT);
-    PORT *p = GET_PORT(cell);
+    CELL port = gc_alloc(PORT);
+    PORT *p = GET_PORT(port);
     p->res.pad_reloc = V_EMPTY;
-    p->res.next_resource = gc_chain_resource(cell);
+    p->res.next_resource = gc_chain_resource(port);
     p->res.mark = V_FALSE;
 
     p->path_str = path;
     p->mode_ch = make_char(mode);
     p->fp = fp;
     gc_unroot();
-    return cell;
+    return port;
 }
 
 CELL make_db_connection(void *handle) {
-    CELL cell = gc_alloc(DB_CONNECTION);
-    DB_CONNECTION *p = GET_DB_CONNECTION(cell);
+    CELL conn = gc_alloc(DB_CONNECTION);
+    DB_CONNECTION *p = GET_DB_CONNECTION(conn);
     p->res.pad_reloc = V_EMPTY;
-    p->res.next_resource = gc_chain_resource(cell);
+    p->res.next_resource = gc_chain_resource(conn);
     p->res.mark = V_FALSE;
 
     p->handle = handle;
-    return cell;
+    return conn;
 }
 
 CELL make_db_result(void *handle) {
-    CELL cell = gc_alloc(DB_RESULT);
-    DB_RESULT *p = GET_DB_RESULT(cell);
+    CELL db_result = gc_alloc(DB_RESULT);
+    DB_RESULT *p = GET_DB_RESULT(db_result);
     p->res.pad_reloc = V_EMPTY;
-    p->res.next_resource = gc_chain_resource(cell);
+    p->res.next_resource = gc_chain_resource(db_result);
     p->res.mark = V_FALSE;
 
     p->handle = handle;
-    return cell;
+    return db_result;
 }
 
-static CELL make_raw_name() {
-    CELL cell = gc_alloc(NAME);
-    NAME *p = GET_NAME(cell);
+static CELL make_raw_symbol() {
+    CELL symbol = gc_alloc(SYMBOL);
+    SYMBOL *p = GET_SYMBOL(symbol);
     p->gensym = V_NULL;
     p->name_str = V_NULL;
     p->binding = V_UNDEFINED;
-    return cell;
+    return symbol;
 }
 
-static CELL get_interned_name(const char *s, INT len) {
+static CELL get_interned_symbol(const char *s, INT len) {
     int (*cmp)(const char *, const char *, size_t) = opt_case_sensitive ? strncmp : strncasecmp;
-    for (CELL list = g_interned_names; !NULLP(list); list = CDR(list)) {
-        CELL name = CAR(list);
-        STRING *p = GET_STRING(GET_NAME(name)->name_str);
+    for (CELL list = g_interned_symbols; !NULLP(list); list = CDR(list)) {
+        CELL symbol = CAR(list);
+        STRING *p = GET_STRING(GET_SYMBOL(symbol)->name_str);
         if (p->len == len && (*cmp)(p->data, s, (size_t) len) == 0) {
-            return name;
+            return symbol;
         }
     }
     return V_UNDEFINED;
 }
 
-CELL make_name_counted(const char *s, INT len) {
-    CELL name = get_interned_name(s, len);
-    if (!UNDEFINEDP(name)) {
-        return name;
+CELL make_symbol_counted(const char *s, INT len) {
+    CELL symbol = get_interned_symbol(s, len);
+    if (!UNDEFINEDP(symbol)) {
+        return symbol;
     }
 
     CELL name_str = V_UNDEFINED;
-    gc_root_2("make_name_counted", name, name_str);
+    gc_root_2("make_symbol_counted", symbol, name_str);
 
-    name = make_raw_name();
+    symbol = make_raw_symbol();
     name_str = make_raw_immutable_string(len);
     STRING *p = GET_STRING(name_str);
     if (opt_case_sensitive) {
@@ -329,54 +329,54 @@ CELL make_name_counted(const char *s, INT len) {
         }
     }
 
-    GET_NAME(name)->name_str = name_str;
+    GET_SYMBOL(symbol)->name_str = name_str;
 
-    g_interned_names = make_cons(name, g_interned_names);
+    g_interned_symbols = make_cons(symbol, g_interned_symbols);
     gc_unroot();
-    return name;
+    return symbol;
 }
 
-CELL make_name_from_string(CELL string) {
+CELL make_symbol_from_string(CELL string) {
     const char *data = GET_STRING(string)->data;
-    INT len = GET_STRING(string)->len;
+    const INT len = GET_STRING(string)->len;
 
-    CELL name = get_interned_name(data, len);
-    if (!UNDEFINEDP(name)) {
-        return name;
+    CELL symbol = get_interned_symbol(data, len);
+    if (!UNDEFINEDP(symbol)) {
+        return symbol;
     }
 
-    gc_root_2("make_name_from_string", string, name);
-    name = make_raw_name();
-    GET_NAME(name)->name_str = make_immutable_string_from_string(string);
-    g_interned_names = make_cons(name, g_interned_names);
+    gc_root_2("make_symbol_from_string", string, symbol);
+    symbol = make_raw_symbol();
+    GET_SYMBOL(symbol)->name_str = make_immutable_string_from_string(string);
+    g_interned_symbols = make_cons(symbol, g_interned_symbols);
     gc_unroot();
-    return name;
+    return symbol;
 }
 
-// Attempt to find the NAME cell for s, and return it.
-// If no such NAME exists, allocate a fresh one and return it.
+// Attempt to find the SYMBOL cell for s, and return it.
+// If no such SYMBOL exists, allocate a fresh one and return it.
 // TODO: we'd be much better to use a hash.
-CELL make_name(const char *s) {
-    return make_name_counted(s, (INT) strlen(s));
+CELL make_symbol(const char *name) {
+    return make_symbol_counted(name, (INT) strlen(name));
 }
 
-CELL make_name_gensym() {
+CELL make_symbol_gensym() {
     static INT gensym_counter = 0;
-    CELL cell = gc_alloc(NAME);
-    NAME *p = GET_NAME(cell);
+    CELL symbol = gc_alloc(SYMBOL);
+    SYMBOL *p = GET_SYMBOL(symbol);
     p->gensym = make_int(++gensym_counter);
     p->binding = V_UNDEFINED;
     p->name_str = V_NULL;
-    return cell;
+    return symbol;
 }
 
 static CELL g_interned_keywords = {.as_bits = NULL_BITS};
 
 static CELL make_raw_keyword() {
-    CELL cell = gc_alloc(KEYWORD);
-    KEYWORD *p = GET_KEYWORD(cell);
+    CELL keyword = gc_alloc(KEYWORD);
+    KEYWORD *p = GET_KEYWORD(keyword);
     p->name_str = V_UNDEFINED;
-    return cell;
+    return keyword;
 }
 
 static CELL get_interned_keyword(const char *s, INT len) {
@@ -437,18 +437,18 @@ CELL make_keyword_from_string(CELL string) {
 }
 
 DECLARE_FUNC_0(
-    func_interned_names,
-    "interned-names",
+    func_interned_symbols,
+    "interned-symbols",
     "Returns a list of all interned symbols."
 )
 
-CELL func_interned_names(CELL frame) {
-    return g_interned_names;
+CELL func_interned_symbols(CELL frame) {
+    return g_interned_symbols;
 }
 
 void heap_init() {
-    gc_root_static(g_interned_names);
+    gc_root_static(g_interned_symbols);
     gc_root_static(g_interned_keywords);
 
-    register_func(&meta_func_interned_names);
+    register_func(&meta_func_interned_symbols);
 }

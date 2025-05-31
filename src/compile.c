@@ -22,11 +22,11 @@ CELL internal_compile_with_env_impl(CELL expr, CELL compile_env, INT depth, INT 
 
 // Calculates the length of a formal parameters list.
 // Returns V_VOID on success, setting *ret_argc and *ret_rest.
-// Returns an exception if any non-NAMEs are found.
+// Returns an exception if any non-SYMBOLs are found.
 //
-// formals: LIST of NAME, or DOTTED-LIST of NAME.
-// ret_argc: the number of NAMEs found before the dot.
-// ret_rest: true if a NAME is found after the dot.
+// formals: LIST of SYMBOL, or DOTTED-LIST of SYMBOL.
+// ret_argc: the number of SYMBOLs found before the dot.
+// ret_rest: true if a SYMBOL is found after the dot.
 // return: V_VOID or EXCEPTION.
 CELL lambda_formals_length(char *caller, CELL formals, INT *ret_argc, bool *ret_rest) {
     if (opt_trace_compile) {
@@ -37,15 +37,15 @@ CELL lambda_formals_length(char *caller, CELL formals, INT *ret_argc, bool *ret_
     bool rest = false;
     for (; CONSP(formals); formals = CDR(formals)) {
         CELL formal = CAR(formals);
-        if (!NAMEP(formal)) {
-            return make_exception("%s: formal argument is not a name", caller);
+        if (!SYMBOLP(formal)) {
+            return make_exception("%s: formal argument is not a symbol", caller);
         }
         ++argc;
     }
-    if (NAMEP(formals)) {
+    if (SYMBOLP(formals)) {
         rest = true;
     } else if (!NULLP(formals)) {
-        return make_exception("%s: rest-of-arguments placeholder is not a name", caller);
+        return make_exception("%s: rest-of-arguments placeholder is not a symbol", caller);
     }
     *ret_argc = argc;
     *ret_rest = rest;
@@ -57,8 +57,8 @@ CELL lambda_formals_length(char *caller, CELL formals, INT *ret_argc, bool *ret_
 // Returns an EXCEPTION if var is present.
 //
 // n: length of checklist
-// var: NAME
-// checklist: LIST of NAME
+// var: SYMBOL
+// checklist: LIST of SYMBOL
 // return: V_VOID or EXCEPTION
 CELL dup_check(char *caller, INT n, CELL var, CELL checklist) {
     if (opt_trace_compile) {
@@ -67,7 +67,7 @@ CELL dup_check(char *caller, INT n, CELL var, CELL checklist) {
     }
     for (INT i = 0; i < n; ++i) {
         if (EQP(CAR(checklist), var)) {
-            NAME *p = GET_NAME(var);
+            SYMBOL *p = GET_SYMBOL(var);
             STRING *pname = GET_STRING(p->name_str);
             return make_exception("%s: repeated identifier '%.*s'", caller, pname->len, pname->data);
         }
@@ -77,20 +77,20 @@ CELL dup_check(char *caller, INT n, CELL var, CELL checklist) {
 }
 
 // FIXME - not very efficient!
-// name: NAME
+// symbol: SYMBOL
 // *max_slot: int
 // depth: int
 // compile_env: LIST
-// return: NAME|SLOT
-CELL internal_compile_name(CELL name, CELL compile_env, INT depth, INT *max_slot) {
+// return: SYMBOL|SLOT
+CELL internal_compile_symbol(CELL symbol, CELL compile_env, INT depth, INT *max_slot) {
     if (opt_trace_compile) {
-        trace_print("internal_compile_name");
+        trace_print("internal_compile_symbol");
         trace_newline();
     }
     INT match_depth = -1;
     for (; CONSP(compile_env); compile_env = CDR(compile_env)) {
         --depth;
-        if (EQP(CAR(compile_env), name)) {
+        if (EQP(CAR(compile_env), symbol)) {
             match_depth = depth;
             break;
         }
@@ -101,7 +101,7 @@ CELL internal_compile_name(CELL name, CELL compile_env, INT depth, INT *max_slot
         }
         return make_slot(match_depth);
     }
-    return name;
+    return symbol;
 }
 
 CELL internal_compile_body(CELL body, CELL compile_env, INT depth, INT *max_slot) {
@@ -154,10 +154,10 @@ CELL internal_compile_define(INT argc, CELL expr, CELL compile_env, INT depth, I
     }
     CELL var = V_EMPTY;
     CELL value = V_EMPTY;
-    CELL compiled_name = V_EMPTY;
+    CELL compiled_symbol = V_EMPTY;
     CELL compiled_value = V_EMPTY;
 
-    gc_root_6("internal_compile_define", expr, compile_env, var, value, compiled_name, compiled_value);
+    gc_root_6("internal_compile_define", expr, compile_env, var, value, compiled_symbol, compiled_value);
 
     if (argc != 2) {
         gc_unroot();
@@ -166,13 +166,13 @@ CELL internal_compile_define(INT argc, CELL expr, CELL compile_env, INT depth, I
 
     var = CAR(CDR(expr));
     value = CAR(CDR(CDR(expr)));
-    if (!NAMEP(var)) {
+    if (!SYMBOLP(var)) {
         gc_unroot();
-        return make_exception("define: 1st argument is not a name");
+        return make_exception("define: 1st argument is not a symbol");
     }
 
-    compiled_name = internal_compile_name(var, compile_env, depth, max_slot);
-    if (SLOTP(compiled_name)) {
+    compiled_symbol = internal_compile_symbol(var, compile_env, depth, max_slot);
+    if (SLOTP(compiled_symbol)) {
         gc_unroot();
         return make_exception("define: 1st argument is lexically bound");
     }
@@ -185,7 +185,7 @@ CELL internal_compile_define(INT argc, CELL expr, CELL compile_env, INT depth, I
 
     gc_check_headroom();
     gc_unroot();
-    return make_cons(make_int(SPECIAL_ARGC_DEFINE), make_cons(compiled_name, make_cons(compiled_value, V_NULL)));
+    return make_cons(make_int(SPECIAL_ARGC_DEFINE), make_cons(compiled_symbol, make_cons(compiled_value, V_NULL)));
 }
 
 CELL internal_compile_set(INT argc, CELL expr, CELL compile_env, INT depth, INT *max_slot) {
@@ -195,10 +195,10 @@ CELL internal_compile_set(INT argc, CELL expr, CELL compile_env, INT depth, INT 
     }
     CELL var = V_EMPTY;
     CELL value = V_EMPTY;
-    CELL compiled_name = V_EMPTY;
+    CELL compiled_symbol = V_EMPTY;
     CELL compiled_value = V_EMPTY;
 
-    gc_root_6("internal_compile_set", expr, compile_env, var, value, compiled_name, compiled_value);
+    gc_root_6("internal_compile_set", expr, compile_env, var, value, compiled_symbol, compiled_value);
 
     if (argc != 2) {
         gc_unroot();
@@ -207,12 +207,12 @@ CELL internal_compile_set(INT argc, CELL expr, CELL compile_env, INT depth, INT 
 
     var = CAR(CDR(expr));
     value = CAR(CDR(CDR(expr)));
-    if (!NAMEP(var)) {
+    if (!SYMBOLP(var)) {
         gc_unroot();
-        return make_exception("set!: 1st argument is not a name");
+        return make_exception("set!: 1st argument is not a symbol");
     }
 
-    compiled_name = internal_compile_name(var, compile_env, depth, max_slot);
+    compiled_symbol = internal_compile_symbol(var, compile_env, depth, max_slot);
     compiled_value = internal_compile_with_env(value, compile_env, depth, max_slot);
     if (EXCEPTIONP(compiled_value)) {
         gc_unroot();
@@ -221,8 +221,8 @@ CELL internal_compile_set(INT argc, CELL expr, CELL compile_env, INT depth, INT 
 
     gc_check_headroom();
     gc_unroot();
-    const int special_argc = SLOTP(compiled_name) ? SPECIAL_ARGC_SET_SLOT : SPECIAL_ARGC_SET_NAME;
-    return make_cons(make_int(special_argc), make_cons(compiled_name, make_cons(compiled_value, V_NULL)));
+    const int special_argc = SLOTP(compiled_symbol) ? SPECIAL_ARGC_SET_SLOT : SPECIAL_ARGC_SET_SYMBOL;
+    return make_cons(make_int(special_argc), make_cons(compiled_symbol, make_cons(compiled_value, V_NULL)));
 }
 
 CELL internal_compile_special(int special_argc, CELL expr, CELL compile_env, INT depth, INT *max_slot) {
@@ -362,9 +362,9 @@ CELL internal_compile_with_env_impl(CELL qq_expr, CELL compile_env, INT depth, I
         gc_unroot();
         return expr;
     }
-    if (NAMEP(expr)) {
+    if (SYMBOLP(expr)) {
         gc_unroot();
-        return internal_compile_name(expr, compile_env, depth, max_slot);
+        return internal_compile_symbol(expr, compile_env, depth, max_slot);
     }
     if (!CONSP(expr)) {
         gc_unroot();
@@ -383,8 +383,8 @@ CELL internal_compile_with_env_impl(CELL qq_expr, CELL compile_env, INT depth, I
         gc_unroot();
         return compiled_operator;
     }
-    if (NAMEP(compiled_operator)) {
-        CELL binding = GET_NAME(compiled_operator)->binding;
+    if (SYMBOLP(compiled_operator)) {
+        CELL binding = GET_SYMBOL(compiled_operator)->binding;
         CELL env = V_EMPTY;
         if (CLOSUREP(binding)) {
             env = GET_CLOSURE(binding)->env;
@@ -491,15 +491,15 @@ void compile_register_symbols() {
     gc_root_static(V_BEGIN);
 
     // evaluator symbols
-    V_LAMBDA = make_name("%lambda");
-    V_MACRO = make_name("%macro");
-    V_QUOTE = make_name("quote");
-    V_DEFINE = make_name("%define");
-    V_SET = make_name("set!");
-    V_IF = make_name("if");
-    V_AND = make_name("and");
-    V_OR = make_name("or");
-    V_BEGIN = make_name("begin");
+    V_LAMBDA = make_symbol("%lambda");
+    V_MACRO = make_symbol("%macro");
+    V_QUOTE = make_symbol("quote");
+    V_DEFINE = make_symbol("%define");
+    V_SET = make_symbol("set!");
+    V_IF = make_symbol("if");
+    V_AND = make_symbol("and");
+    V_OR = make_symbol("or");
+    V_BEGIN = make_symbol("begin");
 
     register_func(&meta_func_compile);
     register_func(&meta_func_trace_compile);

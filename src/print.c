@@ -128,8 +128,8 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
             break;
         }
 
-        case T_NAME: {
-            const NAME *p = GET_NAME(cell);
+        case T_SYMBOL: {
+            const SYMBOL *p = GET_SYMBOL(cell);
             if (NULLP(p->gensym)) {
                 const STRING *pname = GET_STRING(p->name_str);
                 fwrite(pname->data, (size_t) pname->len, 1, fp);

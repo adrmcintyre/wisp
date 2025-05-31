@@ -56,7 +56,7 @@ CELL func_stack_frame_pc(CELL frame) {
     ASSERT_STACK_FRAMEP(0);
     const STACK_FRAME *p = GET_STACK_FRAME(FV0);
     const LABEL pc = (LABEL) GET_INT(p->pc);
-    return make_name(label_info[pc].name);
+    return make_symbol(label_info[pc].name);
 }
 
 DECLARE_FUNC(

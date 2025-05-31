@@ -182,7 +182,7 @@ size_t get_size(CELL v) {
         case T_CONS: return sizeof(CONS);
         case T_CLOSURE: return sizeof(CLOSURE);
         case T_REIFIED_CONTINUATION: return sizeof(REIFIED_CONTINUATION);
-        case T_NAME: return sizeof(NAME);
+        case T_SYMBOL: return sizeof(SYMBOL);
         case T_COMPILED_LAMBDA: return sizeof(COMPILED_LAMBDA);
         case T_FUNC: return sizeof(FUNC);
         case T_EXCEPTION: return sizeof(EXCEPTION);
@@ -211,7 +211,7 @@ const char *get_typename(TYPEID type) {
         case T_CONS: return "CONS";
         case T_CLOSURE: return "CLOSURE";
         case T_REIFIED_CONTINUATION: return "REIFIED_CONTINUATION";
-        case T_NAME: return "NAME";
+        case T_SYMBOL: return "SYMBOL";
         case T_COMPILED_LAMBDA: return "COMPILED_LAMBDA";
         case T_FUNC: return "FUNC";
         case T_EXCEPTION: return "EXCEPTION";
@@ -418,68 +418,6 @@ void gc_half_space(CELL *root) {
     if (!gc_relocate(root)) {
         return;
     }
-
-    // Need to think about a sensible ordering to maintain some semblance
-    // of locality of reference.
-    //
-    // ((1 2) (3 4) (5 6))
-    //
-    //      ......a.....
-    //     /            `
-    //    b           ...d....
-    //   / \         /        `
-    //  1   c       e          g
-    //     / \     / \        / `
-    //    2   #   3   f      h   #
-    //               / \    / `
-    //              4   #  5   i
-    //                        / `
-    //                       6   #
-    //
-    // left-right, breadth-first traversal: (CAR/CDR order)
-    // a b d 1 c e g 2 3 f h 4 5 i 6
-    //
-    // right-left, breadth-first traversal: (CDR/CAR order)
-    // a d b g e c 1 h f 3 2 i 5 4 6
-    //
-    // left-right, pre-order traversal:
-    // a b 1 c 2 d e 3 f 4 g h 5 i 6
-    //
-    // left-right, post-order traversal:
-    // 1 2 c b 3 4 f e 5 6 i h g d a
-
-    // 00   (car)       *NAME[08]   \ CONS (dotted pair)
-    // 01   (cdr)       *NAME[]     /
-
-    // 02   (car)       NUMBER      \ CONS (list)
-    // 03   (cdr)       *CONS[04]   /
-
-    // 04   (car)       NUMBER      \ CONS (list)
-    // 05   (cdr)       *CONS[06]   /
-
-    // 06   (car)       NUMBER      \ CONS (list)
-    // 07   (cdr)       V_NULL      /
-
-    // 08   (binding)   V_UNDEFINED \
-    // 09   (gensym)    V_FALSE     | NAME
-    // 0a   (name_str)  *STRING[0e] /
-
-    // 0b   (binding)   V_UNDEFINED \
-    // 0c   (gensym)    V_FALSE     | NAME
-    // 0d   (name_str)  *STRING[13] /
-
-    // 0e   (tag)       T_STRING
-    // 0f   (immutable) V_TRUE
-    // 10   (len)       5
-    // 11   (data)      "hell"
-    // 12   ...         "o\0\0\0"
-
-    // 13   (tag)       T_STRING
-    // 14   (immutable) V_FALSE
-    // 15   (len)       5
-    // 16   (data)      "worl"
-    // 17   ...         "d\0\0\0"
-    //
 
     // this is left-right, breadth-first:
     while (raw_ptr < gc_other_next) {

@@ -10,7 +10,7 @@ DECLARE_FUNC(
 )
 
 CELL func_symbolp(CELL frame) {
-    return make_bool(NAMEP(FV0));
+    return make_bool(SYMBOLP(FV0));
 }
 
 DECLARE_FUNC(
@@ -20,10 +20,10 @@ DECLARE_FUNC(
 )
 
 CELL func_symbol_to_string(CELL frame) {
-    ASSERT_NAMEP(0);
+    ASSERT_SYMBOLP(0);
     CELL name = FV0;
 
-    NAME *p = GET_NAME(name);
+    SYMBOL *p = GET_SYMBOL(name);
     CELL gensym = p->gensym;
     if (!NULLP(gensym) && NULLP(p->name_str)) {
         char buf[32];
@@ -34,7 +34,7 @@ CELL func_symbol_to_string(CELL frame) {
         gc_root_1("func_symbol_to_string", name);
         const CELL str = make_immutable_string_counted(buf, n);
         gc_unroot();
-        p = GET_NAME(name);
+        p = GET_SYMBOL(name);
         p->name_str = str;
     }
     return p->name_str;
@@ -49,7 +49,7 @@ DECLARE_FUNC(
 
 CELL func_string_to_symbol(CELL frame) {
     ASSERT_STRINGP(0);
-    return make_name_from_string(FV0);
+    return make_symbol_from_string(FV0);
 }
 
 DECLARE_FUNC(
@@ -67,7 +67,7 @@ CELL func_gensym(CELL frame) {
     if (FC > 0) {
         return make_exception("one argument version unimplemented");
     }
-    return make_name_gensym();
+    return make_symbol_gensym();
 }
 
 void symbol_register_symbols() {

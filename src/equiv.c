@@ -1,9 +1,9 @@
 #include "wisp.h"
 #include "equiv.h"
 
-static inline bool internal_eq_name(CELL obj1, CELL obj2) {
-    NAME *const p1 = GET_NAME(obj1);
-    NAME *const p2 = GET_NAME(obj2);
+static inline bool internal_eq_symbol(CELL obj1, CELL obj2) {
+    SYMBOL *const p1 = GET_SYMBOL(obj1);
+    SYMBOL *const p2 = GET_SYMBOL(obj2);
 
     // if this func has been called, we already know obj1 and obj2 are different,
     // therefore if either is a gensym, they can't be equivalent.
@@ -30,8 +30,8 @@ bool internal_eqvp(CELL obj1, CELL obj2) {
     if (obj1.as_bits == obj2.as_bits) {
         return true;
     }
-    if (NAMEP(obj1) && NAMEP(obj2)) {
-        return internal_eq_name(obj1, obj2);
+    if (SYMBOLP(obj1) && SYMBOLP(obj2)) {
+        return internal_eq_symbol(obj1, obj2);
     }
     return false;
 }
@@ -44,8 +44,8 @@ bool internal_equalp(CELL obj1, CELL obj2) {
         if (!(OBJECTP(obj1) && OBJECTP(obj2))) {
             return false;
         }
-        if (NAMEP(obj1) && NAMEP(obj2)) {
-            return internal_eq_name(obj1, obj2);
+        if (SYMBOLP(obj1) && SYMBOLP(obj2)) {
+            return internal_eq_symbol(obj1, obj2);
         }
         if (OBJECT_TYPE(obj1) != OBJECT_TYPE(obj2)) {
             return false;

@@ -54,7 +54,7 @@ CELL V_COMMA_AT = V_EMPTY;
 
 // FIXME - this all needs to be made more robust for EOF
 
-CELL internal_read_name(RCHAN *rchan, int ch);
+CELL internal_read_symbol(RCHAN *rchan, int ch);
 
 CELL internal_read_number(RCHAN *rchan, int base, int ch, TYPEID want_type);
 
@@ -157,7 +157,7 @@ int internal_peek_char(RCHAN *rchan) {
     return ch;
 }
 
-CELL internal_read_name(RCHAN *rchan, int ch) {
+CELL internal_read_symbol(RCHAN *rchan, int ch) {
     // FIXME - should not have arbitrary limit to identifier lengths
     const INT max_len = 255;
     char token[max_len + 1];
@@ -175,7 +175,7 @@ CELL internal_read_name(RCHAN *rchan, int ch) {
     if (i > 1 && token[i - 1] == ':') {
         return make_keyword_counted(token, i - 1);
     }
-    return make_name_counted(token, i);
+    return make_symbol_counted(token, i);
 }
 
 // WARNING! rchan might point to (part of) an object, so
@@ -452,13 +452,13 @@ CELL read_token(RCHAN *rchan) {
                 if (ch == '.' && isspace(lookahead)) {
                     return V_CHAR_DOT;
                 }
-                return internal_read_name(rchan, ch);
+                return internal_read_symbol(rchan, ch);
             }
             default: break;
         }
 
         if (isalpha(ch) || strchr("!$%&*/:<=>?@^_~", ch)) {
-            return internal_read_name(rchan, ch);
+            return internal_read_symbol(rchan, ch);
         }
         if (isdigit(ch)) {
             return internal_read_number(rchan, 10, ch, T_EMPTY);
@@ -615,13 +615,13 @@ char *completion_generator(const char *text, int state) {
     static size_t len;
 
     if (!state) {
-        extern CELL g_interned_names;
-        symbol_list = g_interned_names;
+        extern CELL g_interned_symbols;
+        symbol_list = g_interned_symbols;
         len = strlen(text);
     }
 
     while (!NULLP(symbol_list)) {
-        NAME *p = GET_NAME(CAR(symbol_list));
+        SYMBOL *p = GET_SYMBOL(CAR(symbol_list));
         STRING *pname = GET_STRING(p->name_str);
         symbol_list = CDR(symbol_list);
         if (!UNDEFINEDP(p->binding) && len <= (size_t) pname->len && strncmp(pname->data, text, len) == 0) {
@@ -681,22 +681,22 @@ void read_register_symbols() {
     gc_root_static(V_COMMA_AT);
 
     //FIXME do not use wisp objects to represent these internal things
-    V_EOF = make_name("#<eof>");
-    V_CHAR_NUL = make_name("#\\nul");
-    V_CHAR_LPAREN = make_name("#\\lparen");
-    V_CHAR_RPAREN = make_name("#\\rparen");
-    V_CHAR_LBRACE = make_name("#\\lbrace");
-    V_CHAR_RBRACE = make_name("#\\rbrace");
-    V_CHAR_LBRACK = make_name("#\\lbrack");
-    V_CHAR_RBRACK = make_name("#\\rbrack");
-    V_CHAR_QUOTE = make_name("#\\quote");
-    V_CHAR_QUASIQUOTE = make_name("#\\tick");
-    V_CHAR_HASH = make_name("#\\hash");
-    V_CHAR_BACKSLASH = make_name("#\\backslash");
-    V_CHAR_PIPE = make_name("#\\pipe");
-    V_CHAR_COMMA = make_name("#\\comma");
-    V_CHAR_DOT = make_name("#\\dot");
-    V_COMMA_AT = make_name(",@");
+    V_EOF = make_symbol("#<eof>");
+    V_CHAR_NUL = make_symbol("#\\nul");
+    V_CHAR_LPAREN = make_symbol("#\\lparen");
+    V_CHAR_RPAREN = make_symbol("#\\rparen");
+    V_CHAR_LBRACE = make_symbol("#\\lbrace");
+    V_CHAR_RBRACE = make_symbol("#\\rbrace");
+    V_CHAR_LBRACK = make_symbol("#\\lbrack");
+    V_CHAR_RBRACK = make_symbol("#\\rbrack");
+    V_CHAR_QUOTE = make_symbol("#\\quote");
+    V_CHAR_QUASIQUOTE = make_symbol("#\\tick");
+    V_CHAR_HASH = make_symbol("#\\hash");
+    V_CHAR_BACKSLASH = make_symbol("#\\backslash");
+    V_CHAR_PIPE = make_symbol("#\\pipe");
+    V_CHAR_COMMA = make_symbol("#\\comma");
+    V_CHAR_DOT = make_symbol("#\\dot");
+    V_COMMA_AT = make_symbol(",@");
 
 #ifdef HAVE_READLINE
     init_readline();

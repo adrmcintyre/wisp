@@ -58,7 +58,7 @@ static INT profile_max_depth = 0;
 static INT profile_push_count = 0;
 static INT profile_deliver = 0;
 
-#define GET_BINDING(cell)      (GET_NAME(cell)->binding)
+#define GET_BINDING(cell)      (GET_SYMBOL(cell)->binding)
 #define DEFINED_BINDING(cell)  (!UNDEFINEDP(GET_BINDING(cell)))
 
 #define JUMP(l)                          (pc=(l))
@@ -242,12 +242,12 @@ CELL internal_execute() {
 
                 if (SLOTP(value)) {
                     DELIVER(env_get(env, GET_SLOT(value)));
-                } else if (NAMEP(value)) {
+                } else if (SYMBOLP(value)) {
                     const CELL ignore = value;
                     if (DEFINED_BINDING(value)) {
                         DELIVER(GET_BINDING(value));
                     } else {
-                        NAME *p = GET_NAME(value);
+                        SYMBOL *p = GET_SYMBOL(value);
                         if (!NULLP(p->gensym) && NULLP(p->name_str)) {
                             THROW(make_exception("undefined name: #_%"PRId64, GET_INT(p->gensym)));
                         } else {
@@ -283,7 +283,7 @@ CELL internal_execute() {
                         }
                         break;
 
-                        case SPECIAL_ARGC_SET_NAME: {
+                        case SPECIAL_ARGC_SET_SYMBOL: {
                             gc_check_headroom();
                             const CELL name = CAR(value);
                             PUSH_CONT1(l_receive_set_name_value, name);
@@ -745,7 +745,7 @@ CELL internal_execute() {
                     trace_newline();
                 }
 
-                GET_NAME(name)->binding = value;
+                GET_SYMBOL(name)->binding = value;
                 DELIVER(V_VOID);
             }
             break;
@@ -777,7 +777,7 @@ CELL internal_execute() {
                     trace_newline();
                 }
 
-                NAME *p = GET_NAME(variable);
+                SYMBOL *p = GET_SYMBOL(variable);
                 if (UNDEFINEDP(p->binding)) {
                     if (!NULLP(p->gensym) && NULLP(p->name_str)) {
                         THROW(make_exception("cannot set undefined identifier #_%"PRId64, p->gensym));
@@ -785,7 +785,7 @@ CELL internal_execute() {
                         THROW(make_exception("cannot set undefined identifier %s", GET_STRING(p->name_str)->data));
                     }
                 } else {
-                    GET_NAME(variable)->binding = value;
+                    GET_SYMBOL(variable)->binding = value;
                     DELIVER(V_VOID);
                 }
             }

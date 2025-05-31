@@ -1,7 +1,7 @@
 static const INT SPECIAL_ARGC_QUOTE = -1;
 static const INT SPECIAL_ARGC_DEFINE = -2;
 static const INT SPECIAL_ARGC_SET_SLOT = -3;
-static const INT SPECIAL_ARGC_SET_NAME = -4;
+static const INT SPECIAL_ARGC_SET_SYMBOL = -4;
 static const INT SPECIAL_ARGC_IF2 = -5;
 static const INT SPECIAL_ARGC_IF3 = -6;
 static const INT SPECIAL_ARGC_BEGIN = -7;
