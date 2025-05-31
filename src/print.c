@@ -1,5 +1,6 @@
 #include "wisp.h"
 #include "print.h"
+#include <inttypes.h>
 
 void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab);
 
@@ -14,7 +15,7 @@ void internal_print_env(FILE *fp, CELL env) {
             if (i > 0) {
                 fprintf(fp, ", ");
             }
-            fprintf(fp, "#%lld=", depth + i);
+            fprintf(fp, "#%"PRId64"=", depth + i);
             internal_generic_output(fp, p->cells[i], true, 0);
         }
         fputc('}', fp);
@@ -96,7 +97,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
         }
 
         case T_INT: {
-            fprintf(fp, "%lld", GET_INT(cell));
+            fprintf(fp, "%"PRId64, GET_INT(cell));
             break;
         }
 
@@ -133,7 +134,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
                 const STRING *pname = GET_STRING(p->name_str);
                 fwrite(pname->data, (size_t) pname->len, 1, fp);
             } else {
-                fprintf(fp, "#_%lld", GET_INT(p->gensym));
+                fprintf(fp, "#_%"PRId64, GET_INT(p->gensym));
             }
             break;
         }
@@ -217,7 +218,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
             }
             const COMPILED_LAMBDA *l = GET_COMPILED_LAMBDA(cell);
             const INT flags = GET_INT(l->flags);
-            fprintf(fp, "#<%s %lld%s:%lld/%lld",
+            fprintf(fp, "#<%s %"PRId64"%s:%"PRId64"/%"PRId64,
                     (flags & LAMBDA_FLAG_MACRO) ? "macro" : "lambda",
                     GET_INT(l->argc),
                     (flags & LAMBDA_FLAG_REST) ? "+" : "",
@@ -291,7 +292,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
         break;
 
         case T_ENV: {
-            fprintf(fp, "#<env:count=%lld>", GET_INT(GET_ENV(cell)->count));
+            fprintf(fp, "#<env:count=%"PRId64">", GET_INT(GET_ENV(cell)->count));
             break;
         }
 
@@ -324,7 +325,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
 
         default: {
             //TODO FIXME
-            fprintf(fp, "#<0x%016llx>", cell.as_bits);
+            fprintf(fp, "#<0x%016"PRIx64">", cell.as_bits);
             break;
         }
     }

@@ -32,9 +32,9 @@ CELL unsafe_make_list_3(CELL e1, CELL e2, CELL e3) {
     return make_cons(e1, make_cons(e2, make_cons(e3, V_NULL)));
 }
 
-const size_t func_entries_cap = 1024;
+#define FUNC_ENTRIES_CAP ((size_t) 1024)
 static size_t func_index = 0;
-FUNC_ENTRY func_entries[func_entries_cap] = {0};
+FUNC_ENTRY func_entries[FUNC_ENTRIES_CAP] = {0};
 
 CELL make_func(
     const char *name,
@@ -45,7 +45,7 @@ CELL make_func(
     INT min_args,
     INT max_args
 ) {
-    assert(func_index < func_entries_cap);
+    assert(func_index < FUNC_ENTRIES_CAP);
     assert(min_args >= 0 && min_args < 100);
     assert(max_args == -1 || max_args >= 0 && max_args < 100);
     assert(max_args == -1 || max_args >= min_args);

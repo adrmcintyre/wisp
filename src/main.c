@@ -10,6 +10,7 @@
 #include <getopt.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 static char *prog;
 static bool opt_load_libs = true;
@@ -302,7 +303,7 @@ void mem_dump(void *p, size_t n) {
         printf("%16p :", q);
         char *pch = (char *) q;
         for (int j = 0; j < 4; j++) {
-            printf(" %016llx", *q);
+            printf(" %016"PRIx64, *q);
             i++;
             q++;
         }
@@ -320,31 +321,6 @@ extern void *gc_get_start();
 extern void *gc_get_next();
 
 void self_test() {
-    CELL test1, test2, test3;
-    gc_root_static(test1);
-    //gc_root_static(test2);
-    //gc_root_static(test3);
-    test1 = make_name("test1");
-    //test1 = make_string("test1");
-    //test2 = make_string("test2");
-    //test3 = make_cons(test1, test2);
-    printf("BEFORE");
-    printf(" test1=%016llx", test1.as_bits);
-    //printf(" test1=%016llx test2=%016llx test3=%016llx", test1.as_bits, test2.as_bits, test3.as_bits);
-    printf("\n");
-    void *start = gc_get_start();
-    void *end = gc_get_next();
-    mem_dump(start, (end - start) / 8);
-    internal_print(stdout, test1);
-    gc_collect();
-    printf("AFTER");
-    printf(" test1=%016llx", test1.as_bits);
-    //printf(" test1=%016llx test2=%016llx test3=%016llx", test1.as_bits, test2.as_bits, test3.as_bits);
-    printf("\n");
-    start = gc_get_start();
-    end = gc_get_next();
-    mem_dump(start, (end - start) / 8);
-    internal_print(stdout, test1);
 }
 
 int main(int argc, char *argv[]) {

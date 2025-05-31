@@ -1,6 +1,7 @@
 #include "wisp.h"
 #include "gc.h"
 #include "symbol.h"
+#include <inttypes.h>
 
 DECLARE_FUNC(
     func_symbolp, 1, 1,
@@ -26,7 +27,7 @@ CELL func_symbol_to_string(CELL frame) {
     CELL gensym = p->gensym;
     if (!NULLP(gensym) && NULLP(p->name_str)) {
         char buf[32];
-        const int n = snprintf(buf, sizeof(buf), "#_%lld", GET_INT(gensym));
+        const int n = snprintf(buf, sizeof(buf), "#_%"PRId64, GET_INT(gensym));
         if (n >= sizeof(buf)) {
             return make_exception("buffer overflow");
         }

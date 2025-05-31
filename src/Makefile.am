@@ -31,4 +31,4 @@ wisp_SOURCES += trace.c trace.h
 wisp_SOURCES += vector.c vector.h
 wisp_SOURCES += vm.c vm.h
 
-wisp_LDADD = @READLINE_LIBS@
+wisp_LDADD = @READLINE_LIBS@ -lm

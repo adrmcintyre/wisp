@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <math.h>
+#include <inttypes.h>
 #if defined(__MACH__)
 #  include <mach/mach_time.h>
 #endif
@@ -130,7 +131,7 @@ static time_stats gc_mach_time;
 GC_FRAME *gc_curr_frame = 0;
 size_t gc_frame_depth = 0;
 
-static const size_t GC_STATIC_ROOT_MAX = 200;
+#define GC_STATIC_ROOT_MAX ((size_t) 200)
 static size_t gc_static_root_count = 0;
 static CELL *gc_static_root[GC_STATIC_ROOT_MAX];
 static const char *gc_static_root_name[GC_STATIC_ROOT_MAX];
@@ -547,7 +548,7 @@ void gc_half_space(CELL *root) {
                 }
                 default: {
                     // TODO
-                    printf("[%p] %016llx\n", raw_ptr, cell.as_bits);
+                    printf("[%p] %016"PRIx64"\n", raw_ptr, cell.as_bits);
                     gc_die("Unexpected tag seen while gc-ing!\n");
                     break;
                 }
@@ -635,7 +636,7 @@ bool gc_check_cell_info(CELL *p, const char **syndrome) {
 void gc_check_cell(CELL *cell, const char *label) {
     const char *syndrome = "";
     if (!gc_check_cell_info(cell, &syndrome)) {
-        printf("[%p] %016llx (%s) - %s\n", (void *) cell, cell->as_bits, label, syndrome);
+        printf("[%p] %016"PRIx64" (%s) - %s\n", (void *) cell, cell->as_bits, label, syndrome);
         printf("gc_start       = %p\n", gc_start);
         printf("gc_next        = %p\n", gc_next);
         printf("gc_end         = %p\n", gc_end);
@@ -886,7 +887,7 @@ void gc_collect() {
     char buf1[100], buf2[100], buf3[100];
     printf(
         "\n"
-        "GC #%lld: %zu total, %zu free, %zu used (%.2f%%), %zu collected (%.2f%%)\n"
+        "GC #%"PRId64": %zu total, %zu free, %zu used (%.2f%%), %zu collected (%.2f%%)\n"
         "        system - %s\n"
         "        user   - %s\n"
 #if defined(__MACH__)
@@ -925,7 +926,7 @@ DECLARE_FUNC_0(
 CELL func_gc_info(CELL frame) {
     gc_stats s;
     gc_get_stats(&s);
-    printf("[gc #%lld: %zu total, %zu free, %zu used (%.2f%%), %zu collected (%.2f%%)]\n",
+    printf("[gc #%"PRId64": %zu total, %zu free, %zu used (%.2f%%), %zu collected (%.2f%%)]\n",
            s.num_collections,
            s.bytes_total,
            s.bytes_free,

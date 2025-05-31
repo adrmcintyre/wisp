@@ -128,7 +128,7 @@ CELL func_set_current_output_port(CELL frame) {
     CELL FUNC_PTR(CELL frame) { \
         ASSERT_STRINGP(0); \
         const char *path = GET_STRING(FV0)->data; \
-        const FILE *fp = fopen(path, (MODE)); \
+        FILE *fp = fopen(path, (MODE)); \
         if (!fp) { \
             return make_exception("%s: %s", path, strerror(errno)); \
         } \

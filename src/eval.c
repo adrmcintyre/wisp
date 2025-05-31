@@ -6,6 +6,7 @@
 #include "compile.h"
 #include "trace.h"
 #include "signals.h"
+#include <inttypes.h>
 
 #if defined(TRACE_EVAL_ENABLE)
 bool opt_trace_eval = false;
@@ -248,7 +249,7 @@ CELL internal_execute() {
                     } else {
                         NAME *p = GET_NAME(value);
                         if (!NULLP(p->gensym) && NULLP(p->name_str)) {
-                            THROW(make_exception("undefined name: #_%lld", GET_INT(p->gensym)));
+                            THROW(make_exception("undefined name: #_%"PRId64, GET_INT(p->gensym)));
                         } else {
                             STRING *pname = GET_STRING(p->name_str);
                             THROW(make_exception("undefined name: %s", pname->data));
@@ -338,7 +339,7 @@ CELL internal_execute() {
             case l_apply: // value, argc, args
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" args=");
                     trace_cell(args);
                     trace_newline();
@@ -358,7 +359,7 @@ CELL internal_execute() {
             case l_apply_no_eval: // value, argc, args
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" args=");
                     trace_cell(args);
                     trace_newline();
@@ -376,7 +377,7 @@ CELL internal_execute() {
                 args = FRAME_VAR(1);
 
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" args=");
                     trace_cell(args);
                     trace_newline();
@@ -392,7 +393,7 @@ CELL internal_execute() {
             case l_apply2: // value, argc, args, avoid_closure, eval_args
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" args=");
                     trace_cell(args);
                     printf(" avoid_closure=%s", avoid_closure ? "true" : "false");
@@ -488,9 +489,9 @@ CELL internal_execute() {
             case l_eval_args: // value, argc, frame, argi, args
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
-                    printf(" argi=%lld", argi);
+                    printf(" argi=%"PRId64, argi);
                     printf(" args=");
                     trace_cell(args);
                     trace_newline();
@@ -532,9 +533,9 @@ CELL internal_execute() {
             case l_eval_args_with_rest: // value, argc, frame, argi, args
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
-                    printf(" argi=%lld", argi);
+                    printf(" argi=%"PRId64, argi);
                     printf(" args=");
                     trace_cell(args);
                     trace_newline();
@@ -635,7 +636,7 @@ CELL internal_execute() {
             case l_receive_args_for_func_direct: // value, argc, frame
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
                     trace_newline();
                 }
@@ -673,7 +674,7 @@ CELL internal_execute() {
             case l_inline_apply_direct: // value, argc, frame
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
                     trace_newline();
                 }
@@ -700,7 +701,7 @@ CELL internal_execute() {
             case l_inline_eval_direct: // value, argc, frame
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
                     trace_newline();
                 }
@@ -720,7 +721,7 @@ CELL internal_execute() {
             case l_inline_callcc_direct: // value, argc, frame
             {
                 if (opt_trace_eval) {
-                    printf(" argc=%lld", argc);
+                    printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
                     trace_newline();
                 }
@@ -779,7 +780,7 @@ CELL internal_execute() {
                 NAME *p = GET_NAME(variable);
                 if (UNDEFINEDP(p->binding)) {
                     if (!NULLP(p->gensym) && NULLP(p->name_str)) {
-                        THROW(make_exception("cannot set undefined identifier #_%lld", p->gensym));
+                        THROW(make_exception("cannot set undefined identifier #_%"PRId64, p->gensym));
                     } else {
                         THROW(make_exception("cannot set undefined identifier %s", GET_STRING(p->name_str)->data));
                     }

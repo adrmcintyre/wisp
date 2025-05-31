@@ -288,7 +288,7 @@ wisp_SOURCES = main.c wisp.h arith.c arith.h bitwise.c bitwise.h \
 	record.h signals.c signals.h stack.c stack.h str.c str.h \
 	symbol.c symbol.h system.c system.h trace.c trace.h vector.c \
 	vector.h vm.c vm.h
-wisp_LDADD = @READLINE_LIBS@
+wisp_LDADD = @READLINE_LIBS@ -lm
 all: all-am
 
 .SUFFIXES:
