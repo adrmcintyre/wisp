@@ -44,7 +44,7 @@ CELL func_bitwise_not(CELL frame) {
 
 DECLARE_FUNC(
     func_bitwise_merge, 3, 3,
-    "bitwise-merge|bitwise-merge",
+    "bitwise-merge|bitwise-if",
     "if:integer then:integer else:integer",
     "Returns the bitwise \"if\" of its arguments. For each bit position,"
     " if <if>'s bit is 1 the result bit is copied from <then>, otherwise"

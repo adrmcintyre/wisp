@@ -47,9 +47,9 @@ CELL register_func(const FUNC_META *meta) {
     gc_root_1("register_func", result);
 
     for (const char *word = strtok(name, sep); word; word = strtok(0, sep)) {
-        result = make_symbol(name);
+        result = make_symbol(word);
         const CELL fn = make_func(
-            name, meta->help_args, meta->help_body,
+            word, meta->help_args, meta->help_body,
             meta->fn, receiver, meta->min_args, meta->max_args);
         GET_SYMBOL(result)->binding = fn;
     }
