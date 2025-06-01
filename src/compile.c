@@ -1,9 +1,10 @@
 #include "wisp.h"
-#include "gc.h"
 #include "compile.h"
+
+#include "eval.h"
+#include "gc.h"
 #include "quasiquote.h"
 #include "trace.h"
-#include "eval.h"
 
 bool opt_trace_compile = false;
 

@@ -1,9 +1,10 @@
 /*
 #include "wisp.h"
+#include "vm.h"
+
+#include "env.h"
 #include "gc.h"
 #include "heap.h"
-#include "vm.h"
-#include "env.h"
 
 // TODO - this whole file needs to be revisited
 

@@ -1,5 +1,6 @@
 #include "wisp.h"
 #include "trace.h"
+
 #include "print.h"
 
 static int trace_depth = 0;
@@ -24,7 +25,7 @@ void trace_newline() {
     putchar('\n');
 }
 
-void trace_print(char *s) {
+void trace_print(const char *s) {
     fputs(s, stdout);
 }
 

@@ -1,5 +1,6 @@
 #include "wisp.h"
 #include "char.h"
+
 #include <ctype.h>
 
 DECLARE_FUNC(

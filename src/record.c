@@ -1,6 +1,7 @@
 #include "wisp.h"
-#include "gc.h"
 #include "record.h"
+
+#include "gc.h"
 
 DECLARE_FUNC(
     func_recordp, 1, 1,

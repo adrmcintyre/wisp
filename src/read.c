@@ -1,11 +1,11 @@
 #include "wisp.h"
-#include "gc.h"
 #include "read.h"
-#include "quasiquote.h"
 
+#include "gc.h"
+#include "quasiquote.h"
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 
 #ifdef HAVE_READLINE
 #  if defined(HAVE_READLINE_READLINE_H)
@@ -53,22 +53,6 @@ CELL V_CHAR_DOT = V_EMPTY;
 CELL V_COMMA_AT = V_EMPTY;
 
 // FIXME - this all needs to be made more robust for EOF
-
-CELL internal_read_symbol(RCHAN *rchan, int ch);
-
-CELL internal_read_number(RCHAN *rchan, int base, int ch, TYPEID want_type);
-
-CELL internal_read_string(RCHAN *rchan, int ch);
-
-CELL internal_read_char_const(RCHAN *rchan);
-
-CELL read_token(RCHAN *rchan);
-
-CELL internal_read_list(RCHAN *rchan, bool allow_dot, INT *ret_len);
-
-CELL internal_read_vector(RCHAN *rchan);
-
-CELL internal_read(RCHAN *rchan, CELL token);
 
 // FIXME - we need to abstract all this and create our own file handle type
 // (each filehandle needs its own buffer). We should call isatty to determine

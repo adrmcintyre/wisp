@@ -1,6 +1,7 @@
 #include "wisp.h"
+#include "keyword.h"
+
 #include "gc.h"
-#include "symbol.h"
 
 DECLARE_FUNC(
     func_keywordp, 1, 1,

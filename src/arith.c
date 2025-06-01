@@ -1,8 +1,10 @@
 #include "wisp.h"
-// for gc_root funcs
-#include "gc.h"
 #include "arith.h"
+
+#include "gc.h"
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
 DECLARE_FUNC(
     func_numberp, 1, 1,

@@ -1,16 +1,18 @@
 #include "wisp.h"
-#include "heap.h"
-#include "gc.h"
-#include "read.h"
+
 #include "compile.h"
 #include "eval.h"
-#include "print.h"
+#include "gc.h"
+#include "heap.h"
 #include "io.h"
-#include "quasiquote.h"
-#include <getopt.h>
+#include "print.h"
+#include "read.h"
 #include <ctype.h>
-#include <stdint.h>
+#include <getopt.h>
 #include <inttypes.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 static char *prog;
 static bool opt_load_libs = true;
@@ -60,89 +62,67 @@ CELL register_func(const FUNC_META *meta) {
 void core_register_symbols() {
 }
 
-extern void compile_register_symbols();
-
-extern void eval_register_symbols();
-
-extern void read_register_symbols();
-
-extern void quasiquote_register_symbols();
-
-extern void list_register_symbols();
-
-extern void print_register_symbols();
-
 extern void arith_register_symbols();
-
-extern void vector_register_symbols();
-
-extern void record_register_symbols();
-
-extern void equiv_register_symbols();
-
-extern void string_register_symbols();
-
-extern void char_register_symbols();
-
-extern void symbol_register_symbols();
-
-extern void bool_register_symbols();
-
-extern void control_register_symbols();
-
-extern void io_register_symbols();
-
-extern void except_register_symbols();
-
-extern void gc_register_symbols();
-
-extern void file_register_symbols();
-
 extern void bitwise_register_symbols();
+extern void bool_register_symbols();
+extern void char_register_symbols();
+extern void compile_register_symbols();
+extern void control_register_symbols();
+extern void equiv_register_symbols();
+extern void eval_register_symbols();
+extern void except_register_symbols();
+extern void file_register_symbols();
+extern void gc_register_symbols();
+extern void io_register_symbols();
+extern void keyword_register_symbols();
+extern void list_register_symbols();
 #ifdef ENABLE_MYSQL
 extern void mysql_register_symbols();
 #endif
-extern void stack_register_symbols();
-
+extern void print_register_symbols();
+extern void quasiquote_register_symbols();
+extern void read_register_symbols();
+extern void record_register_symbols();
 extern void signals_register_symbols();
-
+extern void stack_register_symbols();
+extern void string_register_symbols();
+extern void symbol_register_symbols();
 extern void system_register_symbols();
-
+extern void vector_register_symbols();
 //extern void vm_register_symbols();
-extern void keyword_register_symbols();
 
 extern void eval_exit();
 
 void register_symbols() {
-    core_register_symbols();
-    compile_register_symbols();
-    eval_register_symbols();
-    read_register_symbols();
-    quasiquote_register_symbols();
-    list_register_symbols();
-    print_register_symbols();
     arith_register_symbols();
-    vector_register_symbols();
-    record_register_symbols();
-    equiv_register_symbols();
-    string_register_symbols();
-    char_register_symbols();
-    symbol_register_symbols();
-    keyword_register_symbols();
-    bool_register_symbols();
-    control_register_symbols();
-    io_register_symbols();
-    except_register_symbols();
-#ifdef ENABLE_MYSQL
-	mysql_register_symbols();
-#endif
-    stack_register_symbols();
-    file_register_symbols();
     bitwise_register_symbols();
+    bool_register_symbols();
+    char_register_symbols();
+    compile_register_symbols();
+    control_register_symbols();
+    core_register_symbols();
+    equiv_register_symbols();
+    eval_register_symbols();
+    except_register_symbols();
+    file_register_symbols();
     gc_register_symbols();
+    io_register_symbols();
+    keyword_register_symbols();
+    list_register_symbols();
+#ifdef ENABLE_MYSQL
+    mysql_register_symbols();
+#endif
+    print_register_symbols();
+    quasiquote_register_symbols();
+    read_register_symbols();
+    record_register_symbols();
     signals_register_symbols();
+    stack_register_symbols();
+    string_register_symbols();
+    symbol_register_symbols();
     system_register_symbols();
-    //    vm_register_symbols();
+    vector_register_symbols();
+    //vm_register_symbols();
 }
 
 static void print_result(CELL value) {
@@ -191,8 +171,6 @@ void usage(char *opt) {
 }
 
 void parse_options(int argc, char *argv[]) {
-    extern char *optarg;
-    extern int optind;
     int ch;
 
     /* options descriptor */
@@ -253,6 +231,8 @@ void parse_options(int argc, char *argv[]) {
                     case 'G':
                         ++endptr;
                         opt_heap_size *= 1024 * 1024 * 1024;
+                        break;
+                    default:
                         break;
                 }
 

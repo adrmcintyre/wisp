@@ -1,4 +1,8 @@
+#ifndef COMPILE_H
+#define COMPILE_H
+
 static const INT SPECIAL_ARGC_QUOTE = -1;
+
 static const INT SPECIAL_ARGC_DEFINE = -2;
 static const INT SPECIAL_ARGC_SET_SLOT = -3;
 static const INT SPECIAL_ARGC_SET_SYMBOL = -4;
@@ -14,3 +18,5 @@ extern void compile_register_symbols();
 extern CELL internal_compile_with_env(CELL expr, CELL compile_env, INT depth, INT *max_slot);
 
 extern bool opt_trace_compile;
+
+#endif // COMPILE_H

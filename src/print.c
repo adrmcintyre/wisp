@@ -1,8 +1,7 @@
 #include "wisp.h"
 #include "print.h"
-#include <inttypes.h>
 
-void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab);
+#include <inttypes.h>
 
 void internal_print_env(FILE *fp, CELL env) {
     fputc('[', fp);

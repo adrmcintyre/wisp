@@ -1,6 +1,7 @@
 #include "wisp.h"
-#include "gc.h"
 #include "symbol.h"
+
+#include "gc.h"
 #include <inttypes.h>
 
 DECLARE_FUNC(

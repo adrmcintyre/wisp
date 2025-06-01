@@ -1,3 +1,6 @@
+#ifndef GC_H
+#define GC_H
+
 #include "core_types.h"
 
 extern void gc_register_symbols();
@@ -152,3 +155,5 @@ void gc_root_static_impl(CELL *v, const char *name);
 		assert(gc_frame_depth == gc_curr_frame->depth); \
 		gc_curr_frame = ((GC_FRAME*) gc_frame)->link; \
 	} while(0)
+
+#endif // GC_H

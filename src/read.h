@@ -1,3 +1,6 @@
+#ifndef READ_H
+#define READ_H
+
 typedef struct struct_RCHAN {
     void *state;
 
@@ -18,4 +21,8 @@ extern CELL internal_read(RCHAN *rchan, CELL token);
 
 extern CELL internal_read_number(RCHAN *rchan, int radix, int ch, TYPEID want_type);
 
+extern CELL internal_read_vector(RCHAN *rchan);
+
 extern void read_register_symbols();
+
+#endif // READ_H

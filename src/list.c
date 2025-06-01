@@ -1,7 +1,8 @@
 #include "wisp.h"
-#include "gc.h"
 #include "list.h"
+
 #include "equiv.h"
+#include "gc.h"
 
 CELL V_LIST = V_EMPTY;
 CELL V_APPEND = V_EMPTY;

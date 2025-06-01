@@ -1,18 +1,20 @@
 #include "wisp.h"
 #include "gc.h"
+
 #include "eval.h"
 #include "io.h"
 #ifdef ENABLE_MYSQL
 #  include "mysql.h"
 #endif
-#include <assert.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-#include <math.h>
 #include <inttypes.h>
 #if defined(__MACH__)
 #  include <mach/mach_time.h>
 #endif
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/resource.h>
+#include <sys/time.h>
 
 typedef struct {
     double zero;
@@ -36,8 +38,8 @@ static void time_stats_init(time_stats *ts, double zero) {
     ts->percent_in_gc = 0;
 }
 
-static void time_stats_copy(time_stats *src, time_stats *dst) {
-    memcpy(src, dst, sizeof(time_stats));
+static void time_stats_copy(time_stats *dst, const time_stats *src) {
+    memcpy(dst, src, sizeof(time_stats));
 }
 
 static void time_stats_update(time_stats *ts, double t1, double t2) {
@@ -55,7 +57,7 @@ static char *secs_format(char *out_buf, size_t n, double t) {
     return out_buf;
 }
 
-static char *time_stats_format(time_stats *ts, char *out_buf, size_t n) {
+static char *time_stats_format(const time_stats *ts, char *out_buf, size_t n) {
     char buf_total[64];
     char buf_in_gc[64];
     snprintf(out_buf, n, "%s elapsed : %.4f last gc, %s gc (%5.2f%%)",
@@ -696,6 +698,9 @@ void gc_check_heap() {
                 case T_DB_RESULT: {
                     break;
                 }
+                default: {
+                    die("gc_check_heap: unhandled object type");
+                }
             }
             CELL pointer = {.as_object = raw_ptr};
             raw_ptr += ALIGN_SIZE_UP(get_size(pointer));
@@ -728,6 +733,9 @@ void gc_destroy_resources() {
                 mysql_destroy_db_result(resource);
                 break;
 #endif
+                default: {
+                    die("gc_destroy_resources: unhandled resource type");
+                }
             }
         }
         resource = p->next_resource;

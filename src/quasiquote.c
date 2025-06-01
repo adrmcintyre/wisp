@@ -1,7 +1,9 @@
 #include "wisp.h"
+#include "quasiquote.h"
+
 #include "gc.h"
-#include "list.h"
 #include "heap.h"
+#include "list.h"
 
 CELL V_QUASIQUOTE = V_EMPTY;
 CELL V_UNQUOTE = V_EMPTY;

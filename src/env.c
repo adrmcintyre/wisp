@@ -1,7 +1,8 @@
 #include "wisp.h"
-#include "gc.h"
 #include "env.h"
-#include "heap.h"
+
+#include "gc.h"
+#include <string.h>
 
 CELL make_env(INT count, CELL next_env) {
     gc_root_1("make_env", next_env);

@@ -1,7 +1,8 @@
-#pragma once
+#ifndef CORE_TYPES_H
+#define CORE_TYPES_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef bool BOOL;
 typedef char CHAR;
@@ -17,3 +18,5 @@ typedef union {
     double as_float;
     OBJECT as_object;
 } CELL;
+
+#endif // CORE_TYPES_H

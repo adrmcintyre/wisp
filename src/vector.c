@@ -1,6 +1,8 @@
 #include "wisp.h"
-#include "gc.h"
 #include "vector.h"
+
+#include "gc.h"
+#include <string.h>
 
 DECLARE_FUNC(
     func_vectorp, 1, 1,

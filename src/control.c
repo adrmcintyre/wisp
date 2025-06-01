@@ -1,7 +1,8 @@
 #include "wisp.h"
-#include "gc.h"
 #include "heap.h"
+
 #include "control.h"
+#include "gc.h"
 
 DECLARE_FUNC(
     func_procedurep, 1, 1,

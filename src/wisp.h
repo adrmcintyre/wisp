@@ -1,17 +1,16 @@
+#ifndef WISP_H
+#define WISP_H
+
+#include "core_types.h"
+
+#include <assert.h>
 #if HAVE_CONFIG_H
 #include <config.h>
 #endif
-
-#include <assert.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
 #include <stdbool.h>
-#include <stddef.h>
-
-#include "core_types.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <unistd.h>
 
 // ---------------------------------------------------------------------
 // Auxiliary types
@@ -628,8 +627,6 @@ extern int64_t proper_list_length(CELL list);
 // eval.c
 extern CELL internal_compile(CELL sexpr);
 
-extern CELL internal_eval(CELL compiled_sexpr, CELL env);
-
 extern CELL internal_compile_eval(CELL sexpr);
 
 // ---------------------------------------------------------------------
@@ -727,3 +724,5 @@ extern CELL make_port(char mode, FILE *fp, CELL path);
 extern CELL make_db_connection(void *handle);
 
 extern CELL make_db_result(void *handle);
+
+#endif // WISP_H

@@ -1,7 +1,9 @@
 #include "wisp.h"
-#include "gc.h"
 #include "str.h"
+
+#include "gc.h"
 #include "heap.h"
+#include <string.h>
 
 DECLARE_FUNC(
     func_stringp, 1, 1,

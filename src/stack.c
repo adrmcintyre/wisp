@@ -1,4 +1,6 @@
 #include "wisp.h"
+#include "stack.h"
+
 #include "eval.h"
 
 DECLARE_FUNC(

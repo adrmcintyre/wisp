@@ -1,6 +1,7 @@
 #include "wisp.h"
-#include "gc.h"
 #include "bitwise.h"
+
+#include "gc.h"
 
 // IMPLEMENTS SRFI-60: "Integers as Bits"
 

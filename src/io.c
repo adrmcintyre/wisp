@@ -1,9 +1,11 @@
-#include <errno.h>
 #include "wisp.h"
-#include "gc.h"
 #include "io.h"
-#include "read.h"
+
+#include "gc.h"
 #include "print.h"
+#include "read.h"
+#include <errno.h>
+#include <string.h>
 
 static CELL current_input_port = V_EMPTY;
 static CELL current_output_port = V_EMPTY;

@@ -1,6 +1,8 @@
 #include "wisp.h"
-#include "eval.h"
+#include "except.h"
+
 #include "env.h"
+#include "eval.h"
 
 DECLARE_FUNC(
     func_error, 1, 1,

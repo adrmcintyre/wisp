@@ -1,8 +1,10 @@
 #include "wisp.h"
 #include "heap.h"
+
 #include "gc.h"
-#include <stdarg.h>
 #include <ctype.h>
+#include <stdarg.h>
+#include <string.h>
 
 extern CELL gc_chain_resource(CELL resource);
 

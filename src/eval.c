@@ -1,11 +1,13 @@
 #include "wisp.h"
+#include "eval.h"
+
+#include "compile.h"
+#include "env.h"
 #include "gc.h"
 #include "heap.h"
-#include "eval.h"
-#include "env.h"
-#include "compile.h"
-#include "trace.h"
+#include "print.h"
 #include "signals.h"
+#include "trace.h"
 #include <inttypes.h>
 
 #if defined(TRACE_EVAL_ENABLE)
@@ -234,8 +236,8 @@ CELL internal_execute() {
         PROFILE_INC(profile_label[pc]);
 
         switch (pc) {
-            case l_eval: // value
-            {
+            // value
+            case l_eval: {
                 if (opt_trace_eval) {
                     trace_newline();
                 }
@@ -261,9 +263,10 @@ CELL internal_execute() {
                     argc = GET_INT(CAR(value));
                     value = CDR(value);
                     switch (argc) {
-                        case SPECIAL_ARGC_QUOTE:
+                        case SPECIAL_ARGC_QUOTE: {
                             DELIVER(CAR(value));
                             break;
+                        }
 
                         case SPECIAL_ARGC_DEFINE: {
                             gc_check_headroom();
@@ -271,8 +274,8 @@ CELL internal_execute() {
                             PUSH_CONT1(l_receive_define_value, var);
                             value = CAR(CDR(value));
                             JUMP(l_eval);
+                            break;
                         }
-                        break;
 
                         case SPECIAL_ARGC_SET_SLOT: {
                             gc_check_headroom();
@@ -280,8 +283,8 @@ CELL internal_execute() {
                             PUSH_CONT1(l_receive_set_slot_value, slot);
                             value = CAR(CDR(value));
                             JUMP(l_eval);
+                            break;
                         }
-                        break;
 
                         case SPECIAL_ARGC_SET_SYMBOL: {
                             gc_check_headroom();
@@ -289,8 +292,8 @@ CELL internal_execute() {
                             PUSH_CONT1(l_receive_set_name_value, name);
                             value = CAR(CDR(value));
                             JUMP(l_eval);
+                            break;
                         }
-                        break;
 
                         case SPECIAL_ARGC_IF2: {
                             gc_check_headroom();
@@ -298,8 +301,8 @@ CELL internal_execute() {
                             PUSH_CONT1(l_receive_if2_test, if_true);
                             value = CAR(value);
                             JUMP(l_eval);
+                            break;
                         }
-                        break;
 
                         case SPECIAL_ARGC_IF3: {
                             gc_check_headroom();
@@ -308,36 +311,39 @@ CELL internal_execute() {
                             PUSH_CONT2(l_receive_if3_test, if_true, if_false);
                             value = CAR(value);
                             JUMP(l_eval);
+                            break;
                         }
-                        break;
 
-                        case SPECIAL_ARGC_BEGIN:
+                        case SPECIAL_ARGC_BEGIN: {
                             JUMP(l_begin);
                             break;
+                        }
 
-                        case SPECIAL_ARGC_AND:
+                        case SPECIAL_ARGC_AND: {
                             JUMP(l_and);
                             break;
+                        }
 
-                        case SPECIAL_ARGC_OR:
+                        case SPECIAL_ARGC_OR: {
                             JUMP(l_or);
                             break;
+                        }
 
-                        default:
+                        default: {
                             args = CDR(value);
                             value = CAR(value);
                             JUMP(l_apply);
                             break;
+                        }
                     }
                 } else {
                     DELIVER(value);
                 }
-                ///////////
+                break;
             }
-            break;
 
-            case l_apply: // value, argc, args
-            {
+            // value, argc, args
+            case l_apply: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" args=");
@@ -353,11 +359,11 @@ CELL internal_execute() {
                     PUSH_CONT2(l_not_avoid_closure, make_int(argc), args);
                     JUMP(l_eval);
                 }
+                break;
             }
-            break;
 
-            case l_apply_no_eval: // value, argc, args
-            {
+            // value, argc, args
+            case l_apply_no_eval: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" args=");
@@ -368,11 +374,11 @@ CELL internal_execute() {
                 avoid_closure = COMPILED_LAMBDAP(value);
                 eval_args = false;
                 JUMP(l_apply2);
+                break;
             }
-            break;
 
-            case l_not_avoid_closure: // value, [argc, args]
-            {
+            // value, [argc, args]
+            case l_not_avoid_closure: {
                 argc = GET_INT(FRAME_VAR(0));
                 args = FRAME_VAR(1);
 
@@ -386,12 +392,12 @@ CELL internal_execute() {
                 avoid_closure = false;
                 eval_args = true;
                 JUMP(l_apply2);
+                break;
             }
-            break;
 
             // operator has been eval'ed by this point, but args have not
-            case l_apply2: // value, argc, args, avoid_closure, eval_args
-            {
+            // value, argc, args, avoid_closure, eval_args
+            case l_apply2: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" args=");
@@ -475,19 +481,21 @@ CELL internal_execute() {
                     args = V_EMPTY;
                     THROW(make_exception("operator is not a function"));
                 }
+                break;
             }
-            break;
 
-            case l_eval_args_receiver: // value, [argc, frame, argi, args]
+            // value, [argc, frame, argi, args]
+            case l_eval_args_receiver: {
                 argc = GET_INT(FRAME_VAR(0));
                 frame = FRAME_VAR(1);
                 argi = GET_INT(FRAME_VAR(2));
                 args = FRAME_VAR(3);
-            //
-            // fall through
-            //
-            case l_eval_args: // value, argc, frame, argi, args
-            {
+                //
+                // fall through
+            }
+
+            // value, argc, frame, argi, args
+            case l_eval_args: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -519,19 +527,21 @@ CELL internal_execute() {
                     args = V_EMPTY;
                     DELIVER(V_VOID);
                 }
+                break;
             }
-            break;
 
-            case l_eval_args_with_rest_receiver: // value, [argc, frame, argi, args]
+            // value, [argc, frame, argi, args]
+            case l_eval_args_with_rest_receiver: {
                 argc = GET_INT(FRAME_VAR(0));
                 frame = FRAME_VAR(1);
                 argi = GET_INT(FRAME_VAR(2));
                 args = FRAME_VAR(3);
-            //
-            // fall through
-            //
-            case l_eval_args_with_rest: // value, argc, frame, argi, args
-            {
+                //
+                // fall through
+            }
+
+            // value, argc, frame, argi, args
+            case l_eval_args_with_rest: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -574,11 +584,11 @@ CELL internal_execute() {
                     args = V_EMPTY;
                     DELIVER(V_VOID);
                 }
+                break;
             }
-            break;
 
-            case l_eval_rest_args: // value, [args, pre_tail]
-            {
+            // value, [args, pre_tail]
+            case l_eval_rest_args: {
                 gc_check_headroom();
                 CELL pre_tail;
                 GET_FRAME_VARS2(args, pre_tail);
@@ -607,11 +617,11 @@ CELL internal_execute() {
                     pre_tail = V_EMPTY;
                     DELIVER(V_VOID);
                 }
+                break;
             }
-            break;
 
-            case l_receive_args_for_lambda: // [value, env]
-            {
+            // [value, env]
+            case l_receive_args_for_lambda: {
                 GET_FRAME_VARS2(value, env);
 
                 if (opt_trace_eval) {
@@ -623,18 +633,20 @@ CELL internal_execute() {
                 }
 
                 JUMP(l_begin);
+                break;
             }
-            break;
 
-            case l_receive_args_for_func: // [value, argc, frame]
+            // [value, argc, frame]
+            case l_receive_args_for_func: {
                 value = FRAME_VAR(0);
                 argc = GET_INT(FRAME_VAR(1));
                 frame = FRAME_VAR(2);
-            //
-            // fall through
-            //
-            case l_receive_args_for_func_direct: // value, argc, frame
-            {
+                //
+                // fall through
+            }
+
+            // value, argc, frame
+            case l_receive_args_for_func_direct: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -660,19 +672,21 @@ CELL internal_execute() {
                 } else {
                     DELIVER(result);
                 }
+                break;
             }
-            break;
 
             // TODO implement multiple argument apply
-            case l_inline_apply_receiver: // [value, argc, frame]
+            // [value, argc, frame]
+            case l_inline_apply_receiver: {
                 value = FRAME_VAR(0);
                 argc = GET_INT(FRAME_VAR(1));
                 frame = FRAME_VAR(2);
-            //
-            // fall through
-            //
-            case l_inline_apply_direct: // value, argc, frame
-            {
+                //
+                // fall through
+            }
+
+            // value, argc, frame
+            case l_inline_apply_direct: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -688,18 +702,20 @@ CELL internal_execute() {
                 } else {
                     JUMP(l_apply_no_eval);
                 }
+                break;
             }
-            break;
 
-            case l_inline_eval_receiver: // [value, argc, frame]
+            // [value, argc, frame]
+            case l_inline_eval_receiver: {
                 value = FRAME_VAR(0);
                 argc = GET_INT(FRAME_VAR(1));
                 frame = FRAME_VAR(2);
-            //
-            // fall through
-            //
-            case l_inline_eval_direct: // value, argc, frame
-            {
+                //
+                // fall through
+            }
+
+            // value, argc, frame
+            case l_inline_eval_direct: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -708,18 +724,20 @@ CELL internal_execute() {
 
                 frame = V_EMPTY;
                 THROW(make_exception("eval is evil and thus unsupported (tough)"));
+                break;
             }
-            break;
 
-            case l_inline_callcc_receiver: // [value, argc, frame]
+            // [value, argc, frame]
+            case l_inline_callcc_receiver: {
                 value = FRAME_VAR(0);
                 argc = GET_INT(FRAME_VAR(1));
                 frame = FRAME_VAR(2);
-            //
-            // fall through
-            //
-            case l_inline_callcc_direct: // value, argc, frame
-            {
+                //
+                // fall through
+            }
+
+            // value, argc, frame
+            case l_inline_callcc_direct: {
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -731,11 +749,11 @@ CELL internal_execute() {
                 args = make_cons(make_reified_continuation(cont), V_NULL);
                 argc = 1;
                 JUMP(l_apply_no_eval);
+                break;
             }
-            break;
 
-            case l_receive_define_value: // value, [name]
-            {
+            // value, [name]
+            case l_receive_define_value: {
                 CELL name;
                 GET_FRAME_VARS1(name);
 
@@ -747,11 +765,11 @@ CELL internal_execute() {
 
                 GET_SYMBOL(name)->binding = value;
                 DELIVER(V_VOID);
+                break;
             }
-            break;
 
-            case l_receive_set_slot_value: // value, [variable]
-            {
+            // value, [variable]
+            case l_receive_set_slot_value: {
                 CELL variable;
                 GET_FRAME_VARS1(variable);
 
@@ -763,11 +781,11 @@ CELL internal_execute() {
 
                 env_set(env, GET_SLOT(variable), value);
                 DELIVER(V_VOID);
+                break;
             }
-            break;
 
-            case l_receive_set_name_value: // value, [variable]
-            {
+            // value, [variable]
+            case l_receive_set_name_value: {
                 CELL variable;
                 GET_FRAME_VARS1(variable);
 
@@ -788,11 +806,11 @@ CELL internal_execute() {
                     GET_SYMBOL(variable)->binding = value;
                     DELIVER(V_VOID);
                 }
+                break;
             }
-            break;
 
-            case l_receive_if2_test: // value, [if_true]
-            {
+            // value, [if_true]
+            case l_receive_if2_test: {
                 CELL if_true;
                 GET_FRAME_VARS1(if_true);
 
@@ -808,11 +826,11 @@ CELL internal_execute() {
                 } else {
                     DELIVER(V_VOID);
                 }
+                break;
             }
-            break;
 
-            case l_receive_if3_test: // value, [if_true, if_false]
-            {
+            // value, [if_true, if_false]
+            case l_receive_if3_test: {
                 CELL if_true;
                 CELL if_false;
                 GET_FRAME_VARS2(if_true, if_false);
@@ -827,11 +845,11 @@ CELL internal_execute() {
 
                 value = TRUEP(value) ? if_true : if_false;
                 JUMP(l_eval);
+                break;
             }
-            break;
 
-            case l_begin: // value
-            {
+            // value
+            case l_begin: {
                 if (opt_trace_eval) {
                     trace_newline();
                 }
@@ -847,11 +865,11 @@ CELL internal_execute() {
                     value = CAR(value);
                     JUMP(l_eval);
                 }
+                break;
             }
-            break;
 
-            case l_begin2: // [args]
-            {
+            // [args]
+            case l_begin2: {
                 value = V_EMPTY;
 
                 GET_FRAME_VARS1(args);
@@ -869,11 +887,11 @@ CELL internal_execute() {
                 }
                 value = CAR(args);
                 JUMP(l_eval);
+                break;
             }
-            break;
 
-            case l_and: // value
-            {
+            // value
+            case l_and: {
                 if (opt_trace_eval) {
                     trace_newline();
                 }
@@ -889,11 +907,11 @@ CELL internal_execute() {
                     value = CAR(value);
                     JUMP(l_eval);
                 }
+                break;
             }
-            break;
 
-            case l_and2: // value, [args]
-            {
+            // value, [args]
+            case l_and2: {
                 GET_FRAME_VARS1(args);
 
                 if (opt_trace_eval) {
@@ -913,11 +931,11 @@ CELL internal_execute() {
                     value = CAR(args);
                     JUMP(l_eval);
                 }
+                break;
             }
-            break;
 
-            case l_or: // value
-            {
+            // value
+            case l_or: {
                 if (opt_trace_eval) {
                     trace_newline();
                 }
@@ -933,11 +951,11 @@ CELL internal_execute() {
                     value = CAR(value);
                     JUMP(l_eval);
                 }
+                break;
             }
-            break;
 
-            case l_or2: // value, [args]
-            {
+            // value, [args]
+            case l_or2: {
                 GET_FRAME_VARS1(args);
 
                 if (opt_trace_eval) {
@@ -957,27 +975,30 @@ CELL internal_execute() {
                     value = CAR(args);
                     JUMP(l_eval);
                 }
+                break;
             }
-            break;
 
-            case l_return: // value
-            {
+            // value
+            case l_return: {
                 if (opt_trace_eval) {
                     trace_newline();
                 }
 
                 return value;
             }
-            break;
+
+            default: {
+                die("unhandled label in eval.c");
+            }
         } // end switch
     } // end while
 }
 
-#include "print.h"
 CELL internal_compile_eval(CELL expr) {
     CELL compilation = internal_compile(expr);
     if (EXCEPTIONP(compilation)) {
-        internal_print(stdout, expr); fputc('\n', stdout);
+        internal_print(stdout, expr);
+        fputc('\n', stdout);
         return compilation;
     }
     return internal_eval(compilation, V_EMPTY);

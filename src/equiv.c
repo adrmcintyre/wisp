@@ -1,6 +1,8 @@
 #include "wisp.h"
 #include "equiv.h"
 
+#include <string.h>
+
 static inline bool internal_eq_symbol(CELL obj1, CELL obj2) {
     SYMBOL *const p1 = GET_SYMBOL(obj1);
     SYMBOL *const p2 = GET_SYMBOL(obj2);
