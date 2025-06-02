@@ -76,6 +76,7 @@ extern void gc_register_symbols();
 extern void io_register_symbols();
 extern void keyword_register_symbols();
 extern void list_register_symbols();
+extern void macro_register_symbols();
 #ifdef ENABLE_MYSQL
 extern void mysql_register_symbols();
 #endif
@@ -84,12 +85,13 @@ extern void quasiquote_register_symbols();
 extern void read_register_symbols();
 extern void record_register_symbols();
 extern void signals_register_symbols();
+extern void special_register_symbols();
 extern void stack_register_symbols();
 extern void string_register_symbols();
 extern void symbol_register_symbols();
 extern void system_register_symbols();
 extern void vector_register_symbols();
-//extern void vm_register_symbols();
+extern void vm_register_symbols();
 
 extern void eval_exit();
 
@@ -109,6 +111,7 @@ void register_symbols() {
     io_register_symbols();
     keyword_register_symbols();
     list_register_symbols();
+    macro_register_symbols();
 #ifdef ENABLE_MYSQL
     mysql_register_symbols();
 #endif
@@ -117,12 +120,13 @@ void register_symbols() {
     read_register_symbols();
     record_register_symbols();
     signals_register_symbols();
+    special_register_symbols();
     stack_register_symbols();
     string_register_symbols();
     symbol_register_symbols();
     system_register_symbols();
     vector_register_symbols();
-    //vm_register_symbols();
+    vm_register_symbols();
 }
 
 static void print_result(CELL value) {

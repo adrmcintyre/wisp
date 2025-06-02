@@ -177,8 +177,8 @@ CELL internal_eval(CELL expr0, CELL env0) {
 }
 
 // should only ever be called during macro expansion
-CELL internal_macro_expand(CELL operator, CELL args0, CELL env0) {
-    gc_root_3("internal_macro_expand", operator, args0, env0);
+CELL internal_macro_apply(CELL operator, CELL args0, CELL env0) {
+    gc_root_3("internal_macro_apply", operator, args0, env0);
     PUSH_CONT(l_return);
     //TODO shouldn't exn_cont be saved?
     exn_cont = cont;

@@ -4,20 +4,10 @@
 #include "eval.h"
 #include "gc.h"
 #include "quasiquote.h"
+#include "special.h"
 #include "trace.h"
 
 bool opt_trace_compile = false;
-
-// Well known special symbols. These will be properly initialised at runtime.
-CELL V_LAMBDA = {.as_bits = EMPTY_BITS};
-CELL V_MACRO = {.as_bits = EMPTY_BITS};
-CELL V_DEFINE = {.as_bits = EMPTY_BITS};
-CELL V_SET = {.as_bits = EMPTY_BITS};
-CELL V_IF = {.as_bits = EMPTY_BITS};
-CELL V_AND = {.as_bits = EMPTY_BITS};
-CELL V_OR = {.as_bits = EMPTY_BITS};
-CELL V_BEGIN = {.as_bits = EMPTY_BITS};
-CELL V_QUOTE = {.as_bits = EMPTY_BITS};
 
 CELL internal_compile_with_env_impl(CELL expr, CELL compile_env, INT depth, INT *max_slot);
 
@@ -29,7 +19,7 @@ CELL internal_compile_with_env_impl(CELL expr, CELL compile_env, INT depth, INT 
 // ret_argc: the number of SYMBOLs found before the dot.
 // ret_rest: true if a SYMBOL is found after the dot.
 // return: V_VOID or EXCEPTION.
-CELL lambda_formals_length(char *caller, CELL formals, INT *ret_argc, bool *ret_rest) {
+static CELL lambda_formals_length(char *caller, CELL formals, INT *ret_argc, bool *ret_rest) {
     if (opt_trace_compile) {
         trace_print("lambda_formals_length");
         trace_newline();
@@ -395,7 +385,7 @@ CELL internal_compile_with_env_impl(CELL qq_expr, CELL compile_env, INT depth, I
             COMPILED_LAMBDA *p = GET_COMPILED_LAMBDA(binding);
             if (GET_INT(p->flags) & LAMBDA_FLAG_MACRO) {
                 const CELL args = CDR(expr);
-                const CELL xformed = internal_macro_expand(binding, args, env);
+                const CELL xformed = internal_macro_apply(binding, args, env);
                 if (EXCEPTIONP(xformed)) {
                     gc_unroot();
                     return xformed;
@@ -481,27 +471,6 @@ CELL func_trace_compile(CELL frame) {
 }
 
 void compile_register_symbols() {
-    gc_root_static(V_LAMBDA);
-    gc_root_static(V_MACRO);
-    gc_root_static(V_QUOTE);
-    gc_root_static(V_DEFINE);
-    gc_root_static(V_SET);
-    gc_root_static(V_IF);
-    gc_root_static(V_AND);
-    gc_root_static(V_OR);
-    gc_root_static(V_BEGIN);
-
-    // evaluator symbols
-    V_LAMBDA = make_symbol("%lambda");
-    V_MACRO = make_symbol("%macro");
-    V_QUOTE = make_symbol("quote");
-    V_DEFINE = make_symbol("%define");
-    V_SET = make_symbol("set!");
-    V_IF = make_symbol("if");
-    V_AND = make_symbol("and");
-    V_OR = make_symbol("or");
-    V_BEGIN = make_symbol("begin");
-
     register_func(&meta_func_compile);
     register_func(&meta_func_trace_compile);
 }
