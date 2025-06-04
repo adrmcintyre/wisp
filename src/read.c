@@ -52,8 +52,6 @@ CELL V_CHAR_COMMA = V_EMPTY;
 CELL V_CHAR_DOT = V_EMPTY;
 CELL V_COMMA_AT = V_EMPTY;
 
-// FIXME - this all needs to be made more robust for EOF
-
 // FIXME - we need to abstract all this and create our own file handle type
 // (each filehandle needs its own buffer). We should call isatty to determine
 // if we are reading from a file or the user.
@@ -284,7 +282,14 @@ CELL internal_read_string(RCHAN *rchan, int ch) {
     const INT max_len = 16384;
     char *token = malloc(max_len + 1);
     INT i = 0;
-    while (EOF != (ch = rchan->readch(rchan)) && ch != '"') {
+    while (true) {
+        ch = rchan->readch(rchan);
+        if (ch == '"') {
+            break;
+        }
+        if (ch == EOF) {
+            return make_exception("unexpected EOF in string");
+        }
         if (ch == '\\') {
             ch = rchan->readch(rchan);
             switch (ch) {
@@ -470,6 +475,10 @@ CELL internal_read_list(RCHAN *rchan, bool allow_dot, INT *ret_len) {
         if (EXCEPTIONP(token)) {
             gc_unroot();
             return token;
+        }
+        if (EQP(token, V_EOF)) {
+            gc_unroot();
+            return make_exception("unexpected EOF");
         }
         if (EQP(token, V_CHAR_RPAREN)) {
             break;
