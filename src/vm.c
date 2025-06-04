@@ -76,7 +76,7 @@ static CELL vm_pop_frame(CELL frame, INT want_argc, bool want_rest, INT given_ar
 
 DECLARE_FUNC(
     func_vm_run, 2, 2,
-    "vm-run", "program:vector globals:vector",
+    "%vm-run", "program:vector globals:vector",
     "Execute the virtual machine."
 )
 
