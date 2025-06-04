@@ -28,7 +28,7 @@
 			(else
 				(list 'append (qq-expand-list (car x) depth)
 							  (qq-expand (cdr x) depth))))
-		x)))
+		(list 'quote x))))
 
 (define qq-expand-list (lambda (x depth)
 	(if (pair? x)
@@ -46,4 +46,4 @@
 			(else
 				(list 'list (list 'append (qq-expand-list (car x) depth)
 										  (qq-expand (cdr x) depth)))))
-		x)))
+		(list 'quote (list x)))))
