@@ -1,10 +1,9 @@
 #include "wisp.h"
 #include "compile.h"
 
-#include "eval.h"
 #include "gc.h"
-#include "quasiquote.h"
 #include "special.h"
+#include "macro.h"
 #include "trace.h"
 
 bool opt_trace_compile = false;
@@ -337,17 +336,14 @@ CELL internal_compile_with_env(CELL expr, CELL compile_env, INT depth, INT *max_
 
 // compile arg to a suitable form for evaluation
 // our main job is to compile lambdas and lets
-CELL internal_compile_with_env_impl(CELL qq_expr, CELL compile_env, INT depth, INT *max_slot) {
+CELL internal_compile_with_env_impl(CELL expr, CELL compile_env, INT depth, INT *max_slot) {
     if (opt_trace_compile) {
         trace_print("internal_compile_with_env_impl");
         trace_newline();
     }
-    CELL expr = V_EMPTY;
     CELL pre_tail = V_EMPTY;
     CELL result = V_EMPTY;
-    gc_root_5("internal_compile_with_env_impl", qq_expr, compile_env, expr, pre_tail, result);
-
-    expr = internal_qq_expand_toplevel(qq_expr);
+    gc_root_4("internal_compile_with_env_impl", compile_env, expr, pre_tail, result);
 
     if (EXCEPTIONP(expr)) {
         gc_unroot();
@@ -373,27 +369,6 @@ CELL internal_compile_with_env_impl(CELL qq_expr, CELL compile_env, INT depth, I
     if (EXCEPTIONP(compiled_operator)) {
         gc_unroot();
         return compiled_operator;
-    }
-    if (SYMBOLP(compiled_operator)) {
-        CELL binding = GET_SYMBOL(compiled_operator)->binding;
-        CELL env = V_EMPTY;
-        if (CLOSUREP(binding)) {
-            env = GET_CLOSURE(binding)->env;
-            binding = GET_CLOSURE(binding)->compiled_lambda;
-        }
-        if (COMPILED_LAMBDAP(binding)) {
-            COMPILED_LAMBDA *p = GET_COMPILED_LAMBDA(binding);
-            if (GET_INT(p->flags) & LAMBDA_FLAG_MACRO) {
-                const CELL args = CDR(expr);
-                const CELL xformed = internal_macro_apply(binding, args, env);
-                if (EXCEPTIONP(xformed)) {
-                    gc_unroot();
-                    return xformed;
-                }
-                gc_unroot();
-                return internal_compile_with_env(xformed, compile_env, depth, max_slot);
-            }
-        }
     }
 
     if (EQP(compiled_operator, V_LAMBDA) ||
@@ -439,6 +414,7 @@ CELL internal_compile(CELL expr) {
         trace_print("internal_compile");
         trace_newline();
     }
+    expr = internal_macro_expand(expr);
     INT max_slot = 0;
     return internal_compile_with_env(expr, V_NULL, 0, &max_slot);
 }
