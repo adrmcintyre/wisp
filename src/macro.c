@@ -245,8 +245,10 @@ CELL internal_macro_expand(CELL qq_expr) {
     } else if (EQP(compiled_operator, V_OR)) {
         result = internal_macro_expand_special(expr);
     } else {
-        const CELL compiled_body = internal_macro_expand_body(CDR(expr));
-        result = make_cons(compiled_operator, compiled_body);
+        result = internal_macro_expand_body(CDR(expr));
+        if (!EXCEPTIONP(result)) {
+            result = make_cons(compiled_operator, result);
+        }
     }
     gc_unroot();
     return result;
