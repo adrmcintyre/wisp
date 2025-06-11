@@ -68,25 +68,18 @@ CELL internal_macro_expand_quote(INT argc, CELL expr) {
 }
 
 CELL internal_macro_expand_define(INT argc, CELL expr) {
-    CELL var = V_EMPTY;
-    CELL value = V_EMPTY;
-    CELL compiled_value = V_EMPTY;
-
-    gc_root_4("internal_macro_expand_define", expr, var, value, compiled_value);
-
     if (argc != 2) {
-        gc_unroot();
         return make_exception("define: accepts 2 arguments");
     }
 
-    var = CAR(CDR(expr));
-    value = CAR(CDR(CDR(expr)));
+    CELL var = CAR(CDR(expr));
+    CELL value = CAR(CDR(CDR(expr)));
     if (!SYMBOLP(var)) {
-        gc_unroot();
         return make_exception("define: 1st argument is not a symbol");
     }
 
-    compiled_value = internal_macro_expand(value);
+    gc_root_2("internal_macro_expand_define", var, value);
+    CELL compiled_value = internal_macro_expand(value);
     if (EXCEPTIONP(compiled_value)) {
         gc_unroot();
         return compiled_value;
@@ -94,7 +87,7 @@ CELL internal_macro_expand_define(INT argc, CELL expr) {
 
     gc_check_headroom();
     gc_unroot();
-    return make_cons(V_DEFINE, make_cons(var, make_cons(compiled_value, V_NULL)));
+    return unsafe_make_list_3(V_DEFINE, var, compiled_value);
 }
 
 CELL internal_macro_expand_set(INT argc, CELL expr) {
@@ -238,11 +231,11 @@ CELL internal_macro_expand(CELL qq_expr) {
         result = internal_macro_expand_set(argc, expr);
     } else if (EQP(compiled_operator, V_IF)) {
         result = internal_macro_expand_if(argc, expr);
-    } else if (EQP(compiled_operator, V_BEGIN)) {
-        result = internal_macro_expand_special(expr);
-    } else if (EQP(compiled_operator, V_AND)) {
-        result = internal_macro_expand_special(expr);
-    } else if (EQP(compiled_operator, V_OR)) {
+    } else if (
+        EQP(compiled_operator, V_BEGIN) ||
+        EQP(compiled_operator, V_AND) ||
+        EQP(compiled_operator, V_OR)
+    ) {
         result = internal_macro_expand_special(expr);
     } else {
         result = internal_macro_expand_body(CDR(expr));

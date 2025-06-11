@@ -51,12 +51,15 @@ static CELL qq_expand(CELL x, size_t depth) {
             gc_unroot();
             return CAR(args);
         }
-        if (EQP(oper, V_UNQUOTE_SPLICING)) {
-            gc_unroot();
-            return make_exception("unquote-splicing: invalid context within quasiquote");
-        }
+        gc_check_headroom();
         gc_unroot();
-        return make_exception("unquote: expects exactly one expression");
+        return unsafe_make_list_2(V_QUOTE, x);
+        //if (EQP(oper, V_UNQUOTE_SPLICING)) {
+        //    gc_unroot();
+        //    return make_exception("unquote-splicing: invalid context within quasiquote");
+        //}
+        //gc_unroot();
+        //return make_exception("unquote: expects exactly one expression");
     }
 
     qqxl = qq_expand_list(oper, depth);
@@ -116,12 +119,13 @@ static CELL qq_expand_list(CELL x, size_t depth) {
 }
 
 CELL internal_qq_expand_toplevel(CELL expr) {
-    if (CONSP(expr)) {
+    while (CONSP(expr)) {
         const CELL oper = CAR(expr);
         const CELL args = CDR(expr);
-        if (EQP(oper, V_QUASIQUOTE)) {
-            return qq_expand(CAR(args), 0);
+        if (!EQP(oper, V_QUASIQUOTE)) {
+            break;
         }
+        expr = qq_expand(CAR(args), 0);
     }
     return expr;
 }
