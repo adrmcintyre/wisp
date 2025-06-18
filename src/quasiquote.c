@@ -4,129 +4,166 @@
 #include "gc.h"
 #include "heap.h"
 #include "list.h"
+#include "vector.h"
 
 CELL V_QUASIQUOTE = V_EMPTY;
 CELL V_UNQUOTE = V_EMPTY;
 CELL V_UNQUOTE_SPLICING = V_EMPTY;
 
-static CELL qq_expand_list(CELL x, size_t depth);
+// This is used as a sentinel to signal that a term has not been expanded
+// during quasiquotation expansion, and so can be quoted as-is by the caller.
+// It should never be returned from the entry point qq_expand_toplevel.
+CELL V_QQ_UNEXPANDED = V_EMPTY;
 
-static CELL qq_expand(CELL x, size_t depth);
+static CELL qq_expand_list(CELL expr, size_t depth);
 
-static CELL qq_expand(CELL x, size_t depth) {
-    CELL oper = V_EMPTY;
-    CELL args = V_EMPTY;
-    CELL qqx = V_EMPTY;
-    CELL qqxl = V_EMPTY;
+static CELL qq_expand_qq_op(CELL expr, size_t depth);
 
-    gc_root_5("qq_expand", x, oper, args, qqx, qqxl);
+static CELL qq_expand_pair(CELL expr, size_t depth);
 
-    if (!CONSP(x)) {
-        gc_check_headroom();
-        gc_unroot();
-        return unsafe_make_list_2(V_QUOTE, x);
+static CELL qq_expand_vector(CELL x, size_t depth);
+
+static CELL qq_expand(CELL expr, size_t depth) {
+    if (SYMBOLP(expr)) {
+        return unsafe_make_list_2(V_QUOTE, expr);
+    }
+    if (VECTORP(expr)) {
+        return qq_expand_vector(expr, depth);
+    }
+    if (!CONSP(expr)) {
+        return V_QQ_UNEXPANDED;
     }
 
-    oper = CAR(x);
-    args = CDR(x);
-
+    const CELL oper = CAR(expr);
+    const CELL args = CDR(expr);
     if (EQP(oper, V_QUASIQUOTE)) {
-        qqx = qq_expand(args, depth + 1);
-        gc_check_headroom();
-        gc_unroot();
-        return unsafe_make_list_3(V_CONS, unsafe_make_list_2(V_QUOTE, oper), qqx);
+        return qq_expand_qq_op(expr, depth + 1);
     }
-
-    if (
-        EQP(oper, V_UNQUOTE) ||
-        EQP(oper, V_UNQUOTE_SPLICING)
-    ) {
+    if (EQP(oper, V_UNQUOTE) || EQP(oper, V_UNQUOTE_SPLICING)) {
         if (depth > 0) {
-            qqx = qq_expand(args, depth - 1);
-            gc_check_headroom();
-            gc_unroot();
-            return unsafe_make_list_3(V_CONS, unsafe_make_list_2(V_QUOTE, oper), qqx);
+            return qq_expand_qq_op(expr, depth - 1);
         }
         if (EQP(oper, V_UNQUOTE) && !NULLP(args) && NULLP(CDR(args))) {
-            gc_unroot();
             return CAR(args);
         }
-        gc_check_headroom();
-        gc_unroot();
-        return unsafe_make_list_2(V_QUOTE, x);
-        //if (EQP(oper, V_UNQUOTE_SPLICING)) {
-        //    gc_unroot();
-        //    return make_exception("unquote-splicing: invalid context within quasiquote");
-        //}
-        //gc_unroot();
-        //return make_exception("unquote: expects exactly one expression");
+        return make_list_2(V_QUOTE, expr);
     }
-
-    qqxl = qq_expand_list(oper, depth);
-    qqx = qq_expand(args, depth);
-    gc_check_headroom();
-    gc_unroot();
-    return unsafe_make_list_3(V_APPEND, qqxl, qqx);
+    return qq_expand_pair(expr, depth);
 }
 
-static CELL qq_expand_list(CELL x, size_t depth) {
-    CELL oper = V_EMPTY;
-    CELL args = V_EMPTY;
-    CELL qqx = V_EMPTY;
-    CELL qqxl = V_EMPTY;
-
-    gc_root_5("qq_expand_list", x, oper, args, qqx, qqxl);
-
-    if (!CONSP(x)) {
-        gc_check_headroom();
-        gc_unroot();
-        return unsafe_make_list_2(V_QUOTE, unsafe_make_list_1(x));
+static CELL qq_expand_list(CELL expr, size_t depth) {
+    if (VECTORP(expr)) {
+        const CELL x_vec = qq_expand_vector(expr, depth);
+        if (EQP(x_vec, V_QQ_UNEXPANDED)) {
+            return V_QQ_UNEXPANDED;
+        }
+        return unsafe_make_list_2(V_LIST, x_vec);
     }
 
-    oper = CAR(x);
-    args = CDR(x);
+    if (!CONSP(expr)) {
+        return V_QQ_UNEXPANDED;
+    }
 
+    const CELL oper = CAR(expr);
+    const CELL args = CDR(expr);
     if (EQP(oper, V_QUASIQUOTE)) {
-        qqx = qq_expand(args, depth + 1);
-        gc_check_headroom();
-        gc_unroot();
-        return unsafe_make_list_2(V_LIST, unsafe_make_list_3(V_CONS, unsafe_make_list_2(V_QUOTE, oper), qqx));
+        return make_list_2(V_LIST, qq_expand_qq_op(expr, depth + 1));
     }
-
-    if (
-        EQP(oper, V_UNQUOTE) ||
-        EQP(oper, V_UNQUOTE_SPLICING)
-    ) {
+    if (EQP(oper, V_UNQUOTE) || EQP(oper, V_UNQUOTE_SPLICING)) {
         if (depth > 0) {
-            qqx = qq_expand(args, depth - 1);
-            gc_check_headroom();
-            gc_unroot();
-            return unsafe_make_list_2(V_LIST, unsafe_make_list_3(V_CONS, unsafe_make_list_2(V_QUOTE, oper), qqx));
+            return unsafe_make_list_2(V_LIST, qq_expand_qq_op(expr, depth - 1));
         }
         if (EQP(oper, V_UNQUOTE)) {
-            gc_unroot();
             return make_cons(V_LIST, args);
         }
-        gc_unroot();
+        if (CONSP(args) && NULLP(CDR(args))) {
+            return CAR(args);
+        }
         return make_cons(V_APPEND, args);
     }
-
-    qqxl = qq_expand_list(oper, depth);
-    qqx = qq_expand(args, depth);
-    gc_check_headroom();
-    gc_unroot();
-    return unsafe_make_list_2(V_LIST, unsafe_make_list_3(V_APPEND, qqxl, qqx));
+    const CELL x_expr = qq_expand_pair(expr, depth);
+    if (EQP(x_expr, V_QQ_UNEXPANDED)) {
+        return V_QQ_UNEXPANDED;
+    }
+    return make_list_2(V_LIST, x_expr);
 }
 
-CELL internal_qq_expand_toplevel(CELL expr) {
+static CELL qq_expand_qq_op(CELL expr, size_t depth) {
+    CELL x_args = V_EMPTY;
+    gc_root_2("qq_expand_qq_op", expr, x_args);
+
+    x_args = qq_expand(CDR(expr), depth);
+    gc_check_headroom();
+
+    CELL result = V_EMPTY;
+    if (EQP(x_args, V_QQ_UNEXPANDED)) {
+        result = unsafe_make_list_2(V_QUOTE, expr);
+    } else {
+        result = unsafe_make_list_3(V_CONS, unsafe_make_list_2(V_QUOTE, CAR(expr)), x_args);
+    }
+    gc_unroot();
+    return result;
+}
+
+static CELL qq_expand_pair(CELL expr, size_t depth) {
+    CELL oper = V_EMPTY;
+    CELL args = V_EMPTY;
+    CELL x_oper = V_EMPTY;
+    CELL x_args = V_EMPTY;
+    CELL result = V_EMPTY;
+    gc_root_6("qq_expand_pair", expr, oper, args, x_oper, x_args, result);
+
+    oper = CAR(expr);
+    args = CDR(expr);
+    x_oper = qq_expand_list(oper, depth);
+    x_args = qq_expand(args, depth);
+
+    gc_check_headroom();
+    if (EQP(x_oper, V_QQ_UNEXPANDED)) {
+        if (EQP(x_args, V_QQ_UNEXPANDED)) {
+            result = V_QQ_UNEXPANDED;
+        } else {
+            x_oper = unsafe_make_list_2(V_QUOTE, oper);
+            result = unsafe_make_list_3(V_CONS, x_oper, x_args);
+        }
+    } else {
+        if (EQP(x_args, V_QQ_UNEXPANDED)) {
+            x_args = unsafe_make_list_2(V_QUOTE, args);
+        }
+        result = unsafe_make_list_3(V_APPEND, x_oper, x_args);
+    }
+
+    gc_unroot();
+    return result;
+}
+
+static CELL qq_expand_vector(CELL vector, size_t depth) {
+    const CELL x_vec = qq_expand_pair(internal_vector2list(vector), depth);
+    if (EQP(x_vec, V_QQ_UNEXPANDED)) {
+        return V_QQ_UNEXPANDED;
+    }
+    return unsafe_make_list_2(V_LIST2VECTOR, x_vec);
+}
+
+CELL qq_expand_toplevel(CELL expr) {
+    CELL arg = V_EMPTY;
+    gc_root_1("qq_expand_toplevel", arg);
     while (CONSP(expr)) {
         const CELL oper = CAR(expr);
         const CELL args = CDR(expr);
         if (!EQP(oper, V_QUASIQUOTE)) {
             break;
         }
-        expr = qq_expand(CAR(args), 0);
+        if (NULLP(args) || !NULLP(CDR(args))) {
+            return make_exception("quasiquote: expects 1 argument");
+        }
+        arg = CAR(args);
+        expr = qq_expand(arg, 0);
+        if (EQP(expr, V_QQ_UNEXPANDED)) {
+            expr = arg;
+        }
     }
+    gc_unroot();
     return expr;
 }
 
@@ -168,8 +205,11 @@ void quasiquote_register_symbols() {
     gc_root_static(V_QUASIQUOTE);
     gc_root_static(V_UNQUOTE);
     gc_root_static(V_UNQUOTE_SPLICING);
+    gc_root_static(V_QQ_UNEXPANDED);
 
     V_QUASIQUOTE = register_func(&meta_func_quasiquote);
     V_UNQUOTE = register_func(&meta_func_unquote);
     V_UNQUOTE_SPLICING = register_func(&meta_func_unquote_splicing);
+    // private unforgeable symbol
+    V_QQ_UNEXPANDED = make_symbol_gensym();
 }

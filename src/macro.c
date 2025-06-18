@@ -177,7 +177,7 @@ CELL internal_macro_expand(CELL qq_expr) {
     CELL result = V_EMPTY;
     gc_root_5("internal_macro_expand", qq_expr, expr, pre_tail, compiled_operator, result);
 
-    expr = internal_qq_expand_toplevel(qq_expr);
+    expr = qq_expand_toplevel(qq_expr);
     if (EXCEPTIONP(expr)) {
         gc_unroot();
         return expr;

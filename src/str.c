@@ -234,21 +234,20 @@ CELL func_string_to_list(CELL frame) {
 
     CELL string = FV0;
     CELL result = V_NULL;
-    CELL pre_tail = V_EMPTY;
 
-    gc_root_3("func_string_to_list", string, result, pre_tail);
     const INT len = GET_STRING(string)->len;
-    for (INT i = 0; i < len; ++i) {
-        const STRING *p = GET_STRING(string);
-        const CELL next = unsafe_make_list_1(make_char(p->data[i]));
-        if (i == 0) {
-            result = next;
-        } else {
-            CDR(pre_tail) = next;
+    if (len > 0) {
+        gc_root_1("func_string_to_list", string);
+        gc_check_headroom_list(len);
+        gc_unroot();
+
+        const char *data = GET_STRING(string)->data;
+        CELL pre_tail = result = make_list_1(make_char(*data++));
+        
+        for (INT i = 1; i < len; ++i) {
+            pre_tail = CDR(pre_tail) = make_list_1(make_char(*data++));
         }
-        pre_tail = next;
     }
-    gc_unroot();
 
     return result;
 }

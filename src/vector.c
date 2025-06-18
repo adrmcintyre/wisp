@@ -2,7 +2,10 @@
 #include "vector.h"
 
 #include "gc.h"
+#include "heap.h"
 #include <string.h>
+
+CELL V_LIST2VECTOR = V_EMPTY;
 
 DECLARE_FUNC(
     func_vectorp, 1, 1,
@@ -95,6 +98,76 @@ CELL func_vector_set(CELL frame) {
     return V_VOID;
 }
 
+DECLARE_FUNC(
+    func_vector_fill, 2, 2,
+    "vector-fill!", "<vector> <obj>",
+    "Sets all elements of <vector> to <obj>."
+)
+CELL func_vector_fill(CELL frame) {
+    ASSERT_VECTORP(0);
+    VECTOR * p = GET_VECTOR(FV0);
+    const CELL obj = FV1;
+    const INT n = p->len;
+    CELL *data = p->data;
+    for (INT i = 0; i < n; i++) {
+        *data++ = obj;
+    }
+    return V_EMPTY;
+}
+
+CELL internal_vector2list(CELL vector) {
+    CELL result = V_NULL;
+    const INT n = GET_VECTOR(vector)->len;
+    if (n > 0) {
+        gc_root_1("func_vector1list", vector);
+        gc_check_headroom_list(n);
+        gc_unroot();
+        const CELL *data = GET_VECTOR(vector)->data;
+        CELL pre_tail = result = make_list_1(*data++);
+        for (INT i = 1; i < n; i++) {
+            pre_tail = CDR(pre_tail) = make_list_1(*data++);
+        }
+    }
+    return result;
+}
+
+DECLARE_FUNC(
+    func_list2vector, 1, 1,
+    "list->vector", "elements:list",
+    "Returns a new vector formed from the elements of <list>."
+)
+
+CELL func_list2vector(CELL frame) {
+    ASSERT_LISTP(0);
+    CELL elements = FV0;
+    const INT n = proper_list_length(elements);
+    if (n < 0) {
+        return make_exception("expects a <proper-list> at argument 1");
+    }
+
+    gc_root_1("func_list2vector", elements);
+    const CELL vector = make_vector_uninited(n);
+    gc_unroot();
+
+    CELL *data = GET_VECTOR(vector)->data;
+    for (INT i = 0; i < n; i++) {
+        *data++ = CAR(elements);
+        elements = CDR(elements);
+    }
+    return vector;
+}
+
+DECLARE_FUNC(
+    func_vector2list, 1, 1,
+    "vector->list", "vector",
+    "Returns the elements of <vector> as a list."
+)
+
+CELL func_vector2list(CELL frame) {
+    ASSERT_VECTORP(0);
+    return internal_vector2list(FV0);
+}
+
 void vector_register_symbols() {
     register_func(&meta_func_vectorp);
     register_func(&meta_func_make_vector);
@@ -102,4 +175,7 @@ void vector_register_symbols() {
     register_func(&meta_func_vector_length);
     register_func(&meta_func_vector_ref);
     register_func(&meta_func_vector_set);
+    register_func(&meta_func_vector_fill);
+    register_func(&meta_func_vector2list);
+    V_LIST2VECTOR = register_func(&meta_func_list2vector);
 }

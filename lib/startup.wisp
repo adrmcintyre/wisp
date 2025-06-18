@@ -26,7 +26,6 @@
 (require "core/control")
 (require "core/syntax-rules")
 (require "core/arith")
-(require "core/vector")
 (require "core/io")
 (require "core/promise")
 (require "core/help")

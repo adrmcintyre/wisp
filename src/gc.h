@@ -12,6 +12,10 @@ extern bool opt_trace_heap;
 
 void gc_init(size_t extent);
 
+void gc_check_headroom_bytes(size_t n);
+
+void gc_check_headroom_list(INT n);
+
 void gc_check_headroom();
 
 #if defined(DEBUG_HEAP)

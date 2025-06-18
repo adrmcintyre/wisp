@@ -20,8 +20,16 @@ CELL make_cons(CELL car, CELL cdr) {
     return cons;
 }
 
-CELL unsafe_make_list_1(CELL e1) {
+CELL make_list_1(CELL e1) {
     return make_cons(e1, V_NULL);
+}
+
+CELL make_list_2(CELL e1, CELL e2) {
+    gc_root_2("make_list_2", e1, e2);
+    gc_check_headroom_list(2);
+    const CELL result = make_cons(e1, make_cons(e2, V_NULL));
+    gc_unroot();
+    return result;
 }
 
 // not gc-safe - you must ensure sufficient heap is available first (e.g. gc_check_headroom())

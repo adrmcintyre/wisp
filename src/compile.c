@@ -2,6 +2,7 @@
 #include "compile.h"
 
 #include "gc.h"
+#include "heap.h"
 #include "special.h"
 #include "macro.h"
 #include "trace.h"
@@ -173,9 +174,9 @@ CELL internal_compile_define(INT argc, CELL expr, CELL compile_env, INT depth, I
         return compiled_value;
     }
 
-    gc_check_headroom();
+    gc_check_headroom_list(3);
     gc_unroot();
-    return make_cons(make_int(SPECIAL_ARGC_DEFINE), make_cons(compiled_symbol, make_cons(compiled_value, V_NULL)));
+    return unsafe_make_list_3(make_int(SPECIAL_ARGC_DEFINE), compiled_symbol, compiled_value);
 }
 
 CELL internal_compile_set(INT argc, CELL expr, CELL compile_env, INT depth, INT *max_slot) {
@@ -212,7 +213,7 @@ CELL internal_compile_set(INT argc, CELL expr, CELL compile_env, INT depth, INT 
     gc_check_headroom();
     gc_unroot();
     const int special_argc = SLOTP(compiled_symbol) ? SPECIAL_ARGC_SET_SLOT : SPECIAL_ARGC_SET_SYMBOL;
-    return make_cons(make_int(special_argc), make_cons(compiled_symbol, make_cons(compiled_value, V_NULL)));
+    return unsafe_make_list_3(make_int(special_argc), compiled_symbol, compiled_value);
 }
 
 CELL internal_compile_special(int special_argc, CELL expr, CELL compile_env, INT depth, INT *max_slot) {

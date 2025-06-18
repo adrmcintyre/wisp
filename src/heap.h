@@ -3,7 +3,9 @@
 
 extern void heap_init();
 
-extern CELL unsafe_make_list_1(CELL e1);
+extern CELL make_list_1(CELL e1);
+
+extern CELL make_list_2(CELL e1, CELL e2);
 
 extern CELL unsafe_make_list_2(CELL e1, CELL e2);
 
