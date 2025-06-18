@@ -236,6 +236,30 @@ CELL internal_execute() {
         PROFILE_INC(profile_label[pc]);
 
         switch (pc) {
+            // [value, argc, frame]
+            case l_inline_eval_receiver: {
+                value = FRAME_VAR(0);
+                argc = GET_INT(FRAME_VAR(1));
+                frame = FRAME_VAR(2);
+                //
+                // fall through
+            }
+
+            // value, argc, frame
+            case l_inline_eval_direct: {
+                if (opt_trace_eval) {
+                    printf(" argc=%"PRId64, argc);
+                    printf(" frame=%p", OBJECT_POINTER(frame));
+                    trace_newline();
+                }
+
+                value = GET_ENV(frame)->cells[0];
+                args = V_EMPTY;
+                frame = V_EMPTY;
+                //
+                // fall through
+            }
+
             // value
             case l_eval: {
                 if (opt_trace_eval) {
@@ -706,28 +730,6 @@ CELL internal_execute() {
             }
 
             // [value, argc, frame]
-            case l_inline_eval_receiver: {
-                value = FRAME_VAR(0);
-                argc = GET_INT(FRAME_VAR(1));
-                frame = FRAME_VAR(2);
-                //
-                // fall through
-            }
-
-            // value, argc, frame
-            case l_inline_eval_direct: {
-                if (opt_trace_eval) {
-                    printf(" argc=%"PRId64, argc);
-                    printf(" frame=%p", OBJECT_POINTER(frame));
-                    trace_newline();
-                }
-
-                frame = V_EMPTY;
-                THROW(make_exception("eval is evil and thus unsupported (tough)"));
-                break;
-            }
-
-            // [value, argc, frame]
             case l_inline_callcc_receiver: {
                 value = FRAME_VAR(0);
                 argc = GET_INT(FRAME_VAR(1));
@@ -1040,6 +1042,53 @@ CELL func_undefined(CELL frame) {
     return V_UNDEFINED;
 }
 
+DECLARE_FUNC(
+    func_null_environment, 1, 1,
+    "null-environment", "version:integer",
+    "Returns the environment specifier for just the syntactic bindings in Scheme"
+    "Report RnRS where n = <version>. Only version 5 is supported."
+)
+
+CELL func_null_environment(CELL frame) {
+    ASSERT_INTP(0);
+    const INT version = GET_INT(FV0);
+    if (version != 5) {
+        return make_exception("unsupported version");
+    }
+    // TODO - as environments are not currently supported just return '() as a placeholder.
+    return V_NULL;
+}
+
+DECLARE_FUNC(
+    func_scheme_report_environment, 1, 1,
+    "scheme-report-environment", "version:integer",
+    "Returns the environment specifier for all bindings in Scheme Report RnRS"
+    " where n = <version>. Only version 5 is supported."
+)
+
+CELL func_scheme_report_environment(CELL frame) {
+    ASSERT_INTP(0);
+    const INT version = GET_INT(FV0);
+    if (version != 5) {
+        return make_exception("unsupported version");
+    }
+    // TODO - as environments are not currently supported just return '() as a placeholder.
+    return V_NULL;
+}
+
+DECLARE_FUNC_0(
+    func_interaction_environment,
+    "interaction-environment",
+    "Returns the environment specifier for all bindings in the current"
+    " interactive session."
+)
+
+CELL func_interaction_environment(CELL frame) {
+    // TODO - as environments are not currently supported just return '() as a placeholder.
+    return V_NULL;
+}
+
+
 DECLARE_INLINE(
     meta_apply,
     l_inline_apply_receiver, 2, 2,
@@ -1050,8 +1099,9 @@ DECLARE_INLINE(
 DECLARE_INLINE(
     meta_eval,
     l_inline_eval_receiver, 2, 2,
-    "eval", "obj environment",
+    "%eval", "expr:obj environment",
     "Returns the result of evaluating <obj> in the given <environment>."
+    "The <environment> argument is currently ignored."
 )
 
 DECLARE_INLINE(
@@ -1079,6 +1129,10 @@ void eval_register_symbols() {
 #endif
     register_func(&meta_func_void);
     register_func(&meta_func_undefined);
+
+    register_func(&meta_func_null_environment);
+    register_func(&meta_func_scheme_report_environment);
+    register_func(&meta_func_interaction_environment);
 
     gc_root_static(sp);
     gc_root_static(cont);

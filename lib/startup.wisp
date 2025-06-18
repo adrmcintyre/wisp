@@ -22,6 +22,7 @@
      (%resolve-path name *require-path*))))
 
 (require "core/special")
+(require "core/eval")
 (require "core/map")
 (require "core/control")
 (require "core/syntax-rules")
