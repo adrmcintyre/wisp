@@ -5,15 +5,19 @@
 #include "eval.h"
 
 DECLARE_FUNC(
-    func_error, 1, 1,
-    "error", "reason:string",
-    "Raises an exception with the message <reason>."
+    func_error, 1, 2,
+    "error", "reason:string [extra:obj]",
+    "Raises an exception with the message <reason>, and optional <extra> data."
 )
 
 CELL func_error(CELL frame) {
 	ASSERT_STRINGP(0);
     const STRING *p = GET_STRING(FV0);
-    return make_exception("%.*s", p->len, p->data);
+    CELL exn = make_exception("%.*s", p->len, p->data);
+	if (FC == 2) {
+		GET_EXCEPTION(exn)->extra = FV1;
+	}
+	return exn;
 }
 
 #if 0

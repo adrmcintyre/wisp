@@ -271,9 +271,8 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
 
         case T_EXCEPTION: {
             const EXCEPTION *p = GET_EXCEPTION(cell);
-            const STRING *pmsg = GET_STRING(p->message_str);
             fputs("#<exception:", fp);
-            fwrite(pmsg->data, (size_t) pmsg->len, 1, fp);
+            internal_generic_output(fp, p->message_str, false, 0);
             fputc('>', fp);
         }
         break;

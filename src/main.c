@@ -129,16 +129,22 @@ void register_symbols() {
     vm_register_symbols();
 }
 
+static void print_exception(CELL exn) {
+    EXCEPTION *p = GET_EXCEPTION(exn);
+    if (!NULLP(p->source_str)) {
+        internal_generic_output(stdout, p->source_str, false, 0);
+        fputs(": ", stdout);
+    }
+    internal_generic_output(stdout, p->message_str, false, 0);
+    if (!NULLP(p->extra)) {
+        fputs(" ", stdout);
+        internal_print(stdout, p->extra);
+    }
+}
+
 static void print_result(CELL value) {
     if (EXCEPTIONP(value)) {
-        EXCEPTION *p = GET_EXCEPTION(value);
-        if (!NULLP(p->source_str)) {
-            STRING *psrc = GET_STRING(p->source_str);
-            fwrite(psrc->data, (size_t) psrc->len, 1, stdout);
-            fputs(": ", stdout);
-        }
-        STRING *pmsg = GET_STRING(p->message_str);
-        fwrite(pmsg->data, (size_t) pmsg->len, 1, stdout);
+        print_exception(value);
         fputc('\n', stdout);
     } else if (!VOIDP(value)) {
         internal_print(stdout, value);
@@ -334,9 +340,7 @@ int main(int argc, char *argv[]) {
         //internal_print(stdout, expr);
         //fputc('\n', stdout);
         if (EXCEPTIONP(expr)) {
-            EXCEPTION *p = GET_EXCEPTION(expr);
-            STRING *pmsg = GET_STRING(p->message_str);
-            fwrite(pmsg->data, (size_t) pmsg->len, 1, stdout);
+            print_exception(expr);
             fputc('\n', stdout);
         } else if (EQP(expr, V_EOF)) {
             printf("\n");

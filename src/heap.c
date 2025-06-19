@@ -100,6 +100,7 @@ CELL make_exception(const char *fmt, ...) {
     EXCEPTION *p = GET_EXCEPTION(exception);
     p->source_str = V_NULL;
     p->message_str = message;
+    p->extra = V_NULL;
 
     gc_unroot();
     return exception;

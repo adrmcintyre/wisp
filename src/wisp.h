@@ -72,6 +72,7 @@ typedef struct struct_func {
 typedef struct struct_exception {
     CELL source_str;
     CELL message_str;
+    CELL extra;
 } EXCEPTION;
 
 // ---------------------------------------------------------------------
