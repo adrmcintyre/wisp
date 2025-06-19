@@ -2,6 +2,7 @@
 #include "print.h"
 
 #include <inttypes.h>
+#include <math.h>
 
 void internal_print_env(FILE *fp, CELL env) {
     fputc('[', fp);
@@ -101,8 +102,14 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
         }
 
         case T_FLOAT: {
-            // TODO - use one of the algorithms like dragon4, ryu, schubfach etc to print at optimal precision.
-            fprintf(fp, "%.17g", GET_FLOAT(cell));
+            FLOAT f = GET_FLOAT(cell);
+            if (isfinite(f)) {
+                // TODO - use one of the algorithms like dragon4, ryu, schubfach etc to print at optimal precision.
+                fprintf(fp, "%.17g", f);
+            }
+            else {
+                fprintf(fp, isnan(f) ? "+nan.0" : signbit(f) ? "-inf.0" : "+inf.0");
+            }
             break;
         }
 
