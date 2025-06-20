@@ -20,7 +20,7 @@ CELL func_pairp(CELL frame) {
 
 DECLARE_FUNC(
     func_cons, 2, 2,
-    "cons", "car:obj1 cdr:obj2",
+    "cons", "car:obj cdr:obj",
     "Returns the dotted pair (<car> . <cdr>)."
 )
 
