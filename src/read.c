@@ -430,16 +430,23 @@ CELL read_token(RCHAN *rchan) {
                     if (ch == '\r' || ch == '\n') break;
                 }
                 continue;
-            case '.':
+            case '.': {
+                int lookahead = rchan->readch(rchan);
+                rchan->unreadch(rchan, lookahead);
+                if (isdigit(lookahead)) {
+                    return internal_read_number(rchan, 10, ch, T_EMPTY);
+                }
+                if (isspace(lookahead)) {
+                    return V_CHAR_DOT;
+                }
+                return internal_read_symbol(rchan, ch);
+            }
             case '+':
             case '-': {
                 int lookahead = rchan->readch(rchan);
                 rchan->unreadch(rchan, lookahead);
-                if (isdigit(lookahead) || (ch != '.' && lookahead == '.')) {
+                if (isdigit(lookahead) || lookahead == '.') {
                     return internal_read_number(rchan, 10, ch, T_EMPTY);
-                }
-                if (ch == '.' && isspace(lookahead)) {
-                    return V_CHAR_DOT;
                 }
                 return internal_read_symbol(rchan, ch);
             }
