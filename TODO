@@ -1,5 +1,0 @@
-define map, for-each, apply
-steal defstruct from "scheme in fixnum days"
-return information from compile phase useful for evaluation
-continuations
-compile to bytcode!

@@ -414,9 +414,9 @@
 (test y string->symbol "ab")
 
 (test #t eq? 'mISSISSIppi 'mississippi)
-; wisp does not fold symbol-case of literal symbols
+;; wisp: does not fold symbol-case of literal symbols
 (test #t 'string->symbol (eq? 'bitBlt (string->symbol "bitBlt")))
-; (test #t 'string->symbol (eq? 'bitBlt (string->symbol "bitBlt")))
+;; (test #t 'string->symbol (eq? 'bitBlt (string->symbol "bitBlt")))
 (test 'JollyWog string->symbol (symbol->string 'JollyWog))
 
 (SECTION 6 5 5)
@@ -528,7 +528,8 @@
   (test #t inexact? f3.9)
   (test #t 'inexact? (inexact? (max f3.9 4)))
   (test f4.0 'max (max f3.9 4))
-  (test f4.0 'exact->inexact (exact->inexact 4))
+;; wisp: exact<->inexact conversion not currently supported
+;;  (test f4.0 'exact->inexact (exact->inexact 4))
   (test (- f4.0) round (- f4.5))
   (test (- f4.0) round (- f3.5))
   (test (- f4.0) round (- f3.9))
@@ -593,17 +594,17 @@
   (test 0 modulo 2177452800 86400)
   (test 0 modulo -2177452800 -86400)
 
-; no bignums in wisp
+;; wisp: no bignums
 ;;  (test #t 'remainder (tb 281474976710655 65535))
 ;;  (test #t 'remainder (tb 281474976710654 65535))
   (SECTION 6 5 6)
   (test 140737488355327 string->number "140737488355327")
   (test "140737488355327" number->string 140737488355327)
-; no bignums in wisp
+;; wisp: no bignums
 ;;  (test 281474976710655 string->number "281474976710655")
 ;;  (test "281474976710655" number->string 281474976710655)
 
-; no bignums in wisp
+;; wisp: no bignums
 ;;  (define (fact n)                           ; norvig
 ;;    (if (<= n 1) 1 (* n (fact (- n 1)))))    ; norvig
 ;;  (test 2432902008176640000 fact 20)         ; norvig
@@ -1044,12 +1045,13 @@
 (test '... cadr '(1 ... 2))
 ;; \\\\ End of my added tests -norvig
 
-;;; (test-sc4)  ; I want to run these two; comment them out if you don't. -norvig
+(test-sc4)  ; I want to run these two; comment them out if you don't. -norvig
 (test-delay); -norvig
 
 (test-cont)
-;;; (test-inexact)
-;;; (test-bignum)
+(test-inexact)
+;; wisp: no bignums
+;; (test-bignum)
 
 (report-errs)
 

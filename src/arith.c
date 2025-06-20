@@ -254,7 +254,7 @@ GEN_FLOAT_FUNC(
     " is halfway between two integers. This is consistent with the"
     " default rounding mode specified by the IEEE floating point"
     " standard.",
-    round
+    rint
 )
 
 GEN_FLOAT_FUNC(func_exp, "exp", "z:real", "Returns e raised to the power of <z>.", exp)
