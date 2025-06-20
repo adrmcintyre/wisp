@@ -1,0 +1,13 @@
+(define (repl)
+    (let ((env (interaction-environment)))
+        (let loop ()
+            (display "repl> ")
+            (let ((expr (read)))
+                (if (not (eof-object? expr))
+                     (let ((result (eval expr env)))
+                        (if (not (eq? (void) result))
+                            (begin
+                                (write (eval expr env))
+                                (newline)))
+                        (loop))))))
+    (newline))

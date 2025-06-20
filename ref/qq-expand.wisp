@@ -9,20 +9,12 @@
 (define (qq:expand-toplevel x)
     (if (and (pair? x)
              (eq? 'quasiquote (first x)))
-        (if (or (null? (rest x)) (not (null? (rest (rest x)))))
+        (if (or (null? (rest x))
+                (not (null? (rest (rest x)))))
             (error "quasiquote: expects 1 argument")
             (qq:expand-toplevel
-                (let* ((arg (second x))
-                       (x-arg (qq:expand arg 1)))
-                    (if (eq? x-arg qq-unexpanded)
-                        arg
-                        x-arg))))
+                (qq:expand (second x) 1)))
         x))
-
-; An unforgeable sentinel used to signify that a term has not been expanded
-; during quasiquotation expansion, and so can be quoted as-is by the caller.
-; It is never returned to callers of qq:expand-toplevel.
-(define qq-unexpanded (gensym))
 
 ; The referenced algorithm throws an error in certain cases. In common with
 ; other implementations (e.g. guile, gambit), behave as follows instead.
@@ -52,17 +44,12 @@
                                (first args)
                                (qq:quote x))))  ;; do not throw an error here
                    (else (qq:expand-pair x depth)))))
-        (else qq-unexpanded)))
+        (else (qq:quote x))))
 
 ; Returns the expansion of <x> within <depth> levels of quasiquote when
 ; in a list context.
 (define (qq:expand-list x depth)
     (cond
-        ((vector? x)
-            (let ((x-vec (qq:expand-vector x depth)))
-                (if (eq? x-vec qq-unexpanded)
-                    qq-unexpanded
-                    (qq:list x-vec))))
         ((pair? x)
             (let ((oper (first x)) (args (rest x)))
                 (case oper
@@ -76,41 +63,23 @@
                                          (null? (rest args)))
                                     (first args)
                                     (qq:append-all args)))))
-                    (else
-                        (let ((x-expr (qq:expand-pair x depth)))
-                            (if (eq? x-expr qq-unexpanded)
-                                qq-unexpanded
-                                (qq:list x-expr)))))))
-        (else qq-unexpanded)))
+                    (else (qq:list (qq:expand-pair x depth))))))
+        (else (qq:quote (list x)))))
 
 ; Returns the expansion of the expression (<oper> <args> ...),
 ; within <depth> levels of quasiquote nesting, where <oper> is
 ; one of quasiquote, unquote or unquote-splicing.
 (define (qq:expand-qq-op x depth)
     (let ((x-args (qq:expand (rest x) depth)))
-        (if (eq? x-args qq-unexpanded)
-            (qq:quote x)
-            (qq:cons (qq:quote (first x)) x-args))))
+        (qq:cons (qq:quote (first x)) x-args)))
 
 ; Returns the expansion of any other pair.
 (define (qq:expand-pair x depth)
-    (let* ((oper (first x)) (x-oper (qq:expand-list oper depth))
-           (args (rest x))  (x-args (qq:expand args depth)))
-        (if (eq? x-oper qq-unexpanded)
-            (if (eq? x-args qq-unexpanded)
-                qq-unexpanded
-                (qq:cons (qq:quote oper) x-args))
-            (if (eq? x-args qq-unexpanded)
-                (qq:append x-oper (qq:quote args))
-                (qq:append x-oper x-args)))))
-
-; Returns the expansion of the vector <vec> inside <depth> levels
-; of quasiquote nesting.
-(define (qq:expand-vector vec depth)
-    (let ((x-vec (qq:expand-pair (vector->list vec) depth)))
-        (if (eq? x-vec qq-unexpanded)
-            qq-unexpanded
-            (list 'list->vector x-vec))))
+    (let* ((oper (first x))
+           (args (rest x))
+           (x-oper (qq:expand-list oper depth))
+           (x-args (qq:expand args depth)))
+        (qq:append x-oper x-args)))
 
 ; Returns an expression which quotes an expression:
 ;   <x> => '<x>

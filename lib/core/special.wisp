@@ -21,13 +21,6 @@
 		(%macro ,(cdr name-args)
 			. ,body))))
 
-(define-macro (define name-args . body)
-	(if (pair? name-args)
-		`(%define ,(car name-args)
-			(lambda ,(cdr name-args)
-				. ,body))
-		`(%define ,name-args . ,body)))
-
 ; Helper
 ; (let1 (var val) body)
 ;
@@ -35,6 +28,13 @@
 	`((%lambda
 		(,(car binding)) . ,body)
 	,(cadr binding)))
+
+(define-macro (define name-args . body)
+	(if (pair? name-args)
+		`(%define ,(car name-args)
+			(lambda ,(cdr name-args)
+				. ,body))
+		`(%define ,name-args . ,body)))
 
 ; FIXME - use set-cdr! to avoid having to call reverse at end?
 (define (core:decompose-let-bindings bindings vars vals)
