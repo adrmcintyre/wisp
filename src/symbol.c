@@ -71,9 +71,22 @@ CELL func_gensym(CELL frame) {
     return make_symbol_gensym();
 }
 
+DECLARE_FUNC(
+    func_symbol_boundp, 1, 1,
+    "symbol-bound?", "symbol",
+    "Returns #t if <symbol> is bound, otherwise #f."
+)
+CELL func_symbol_boundp(CELL frame) {
+    ASSERT_SYMBOLP(0);
+    const SYMBOL *p = GET_SYMBOL(FV0);
+    return make_bool(!UNDEFINEDP(p->binding));
+
+}
+
 void symbol_register_symbols() {
     register_func(&meta_func_symbolp);
     register_func(&meta_func_symbol_to_string);
     register_func(&meta_func_string_to_symbol);
     register_func(&meta_func_gensym);
+    register_func(&meta_func_symbol_boundp);
 }
