@@ -9,26 +9,22 @@
 
 CELL internal_macro_expand(CELL qq_expr);
 
-// Calculates the length of a formal parameters list.
-// Returns V_VOID on success, setting *ret_argc.
+// Checks the formal parameters list.
+// Returns V_VOID on success.
 // Returns an exception if any non-SYMBOLs are found.
 //
 // formals: LIST of SYMBOL, or DOTTED-LIST of SYMBOL.
-// ret_argc: the number of SYMBOLs found before the dot.
 // return: V_VOID or EXCEPTION.
-static CELL lambda_formals_length(char *caller, CELL formals, INT *ret_argc) {
-    INT argc = 0;
+static CELL validate_lambda_formals(char *caller, CELL formals) {
     for (; CONSP(formals); formals = CDR(formals)) {
-        CELL formal = CAR(formals);
+        const CELL formal = CAR(formals);
         if (!SYMBOLP(formal)) {
             return make_exception("%s: formal argument is not a symbol", caller);
         }
-        ++argc;
     }
     if (!(SYMBOLP(formals) || NULLP(formals))) {
         return make_exception("%s: rest-of-arguments placeholder is not a symbol", caller);
     }
-    *ret_argc = argc;
     return V_VOID;
 }
 
@@ -142,9 +138,8 @@ CELL internal_macro_expand_lambda(CELL expr) {
         return make_exception("%s: ill formed", is_macro ? "macro" : "lambda");
     }
 
-    INT argc = 0;
     formals = CAR(CDR(expr));
-    const CELL exn = lambda_formals_length(is_macro ? "macro" : "lambda", formals, &argc);
+    const CELL exn = validate_lambda_formals(is_macro ? "macro" : "lambda", formals);
     if (EXCEPTIONP(exn)) {
         gc_unroot();
         return exn;
