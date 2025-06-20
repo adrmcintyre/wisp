@@ -1,9 +1,0 @@
-loaded lib/core/special.wisp
-loaded lib/core/map.wisp
-loaded lib/core/control.wisp
-loaded lib/core/arith.wisp
-loaded lib/core/vector.wisp
-loaded lib/core/io.wisp
-loaded lib/core/promise.wisp
-car: expects <pair> at argument 1
-

@@ -4,6 +4,8 @@
 
 .deps/
 .vscode/
+.idea/
+build/
 src/wisp
 autogen.log
 autoscan.log
@@ -13,6 +15,8 @@ config.h
 config.log
 config.status
 configure.scan
+test-results.txt
+test-failures.txt
 libtool
 stamp-*
 Makefile

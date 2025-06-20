@@ -1,5 +1,0 @@
-(quasiquote #(10 5 (unquote (sqt 4)) (unquote-splicing (map sqt (quote (16 9)))) 8))  ==> #(10 5 (unquote (sqt 4)) (unquote-splicing (map sqt (quote (16 9)))) 8)
- BUT EXPECTED #(10 5 2 4 3 8)
---
-(#<exception:undefined name: call-with-current-continuation> #<primitive:procedure?>)  ==> #<primitive:procedure?>
- BUT EXPECTED #t
