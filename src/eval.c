@@ -236,17 +236,35 @@ CELL internal_execute() {
         PROFILE_INC(profile_label[pc]);
 
         switch (pc) {
-            // [value, argc, frame]
             case l_inline_eval_receiver: {
-                value = FRAME_VAR(0);
-                argc = GET_INT(FRAME_VAR(1));
+                // The receiver for the built-in "%eval" procedure.
+                //
+                // Arguments:
+                //      fv0 <value> - ignored
+                //      fv1 <argc>  - ignored
+                //      fv2 <frame> - environment frame holding 2 arguments: <expr>, <environment-specifier>
+                //
+                // Allocations:
+                //      see l_eval
+                //
                 frame = FRAME_VAR(2);
                 //
                 // fall through
             }
 
-            // value, argc, frame
             case l_inline_eval_direct: {
+                // Evaluates an expression, and delivers the result.
+                // The environment-specifier is currently ignored - evaluation
+                // effectively takes place in (interaction-environment).
+                //
+                // Arguments:
+                //      reg <value> - ignored
+                //      reg <argc>  - ignored
+                //      reg <frame> - environment frame holding 2 arguments: <expr>, <environment-specifier>
+                //
+                // Allocations:
+                //      see l_eval
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -260,8 +278,18 @@ CELL internal_execute() {
                 // fall through
             }
 
-            // value
+            // The main entry point.
             case l_eval: {
+                // Evaluates an expression, and delivers the result.
+                //
+                // Arguments:
+                //      reg <value> - expression to evaluate
+                //
+                // Allocations:
+                //      1 closure
+                //      or
+                //      1 stack_frame of max length 2
+                //
                 if (opt_trace_eval) {
                     trace_newline();
                 }
@@ -366,8 +394,18 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, argc, args
             case l_apply: {
+                // Evaluates a procedure expression and a list of argument expressions,
+                // and applies the evaluated procedure to the evaluated arguments.
+                //
+                // Arguments:
+                //      reg <value> - procedure expression
+                //      reg <argc>  - number of arguments in <args>
+                //      reg <args>  - list of argument expressions
+                //
+                // Allocations:
+                //      1 stack frame, length 2
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" args=");
@@ -386,8 +424,18 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, argc, args
             case l_apply_no_eval: {
+                // Evaluates a procedure expression, and applies the evaluated procedure to
+                // a list of arguments which do not require evaluation.
+                //
+                // Arguments:
+                //      reg <value> - procedure expression
+                //      reg <argc>  - number of arguments in <args>
+                //      reg <args>  - list of arguments values
+                //
+                // Allocations:
+                //      none
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" args=");
@@ -401,8 +449,17 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [argc, args]
             case l_not_avoid_closure: {
+                // TODO
+                //
+                // Arguments:
+                //      reg <value> -
+                //      fv0 <argc>  -
+                //      fv1 <args>  -
+                //
+                // Allocations:
+                //      none
+                //
                 argc = GET_INT(FRAME_VAR(0));
                 args = FRAME_VAR(1);
 
@@ -419,9 +476,23 @@ CELL internal_execute() {
                 break;
             }
 
-            // operator has been eval'ed by this point, but args have not
-            // value, argc, args, avoid_closure, eval_args
             case l_apply2: {
+                // Applies a procedure to its arguments and delivers the result, evaluating
+                // the list of arguments first if indicated by <eval_args>.
+                //
+                // Arguments:
+                //      reg <value>         - procedure to apply
+                //      reg <argc>          - count of <args>
+                //      reg <args>          - list of arguments for procedure
+                //      reg <avoid_closure> - true to avoid creating a closure
+                //      reg <eval_args>     - true to evaluate arguments before applying procedure
+                //
+                // Allocations:
+                //      1 x env - max length argc+1
+                //      |
+                //      1 x env - max length argc
+                //      1 x stack_frame - length 3
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" args=");
@@ -494,7 +565,7 @@ CELL internal_execute() {
                     // What do we need to do to support multiple arguments?
                     if (argc != 1) {
                         args = V_EMPTY;
-                        THROW(make_exception("contination expects exactly 1 argument"));
+                        THROW(make_exception("continuation expects exactly 1 argument"));
                     } else {
                         cont = GET_REIFIED_CONTINUATION(value)->cont;
                         value = CAR(args);
@@ -508,8 +579,20 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [argc, frame, argi, args]
             case l_eval_args_receiver: {
+                // Receives an evaluated argument and adds it to the <argi>th entry
+                // of the environment frame.
+                //
+                // Arguments:
+                //      reg <value> - value of evaluated argument
+                //      fv0 <argc>  - total number of arguments
+                //      fv1 <frame> - environment frame with <argc> entries
+                //      fv2 <argi>  - index of evaluated argument
+                //      fv3 <args>  - remaining list of arguments to evaluate
+                //
+                // Allocations:
+                //      see l_eval_args
+                //
                 argc = GET_INT(FRAME_VAR(0));
                 frame = FRAME_VAR(1);
                 argi = GET_INT(FRAME_VAR(2));
@@ -518,8 +601,23 @@ CELL internal_execute() {
                 // fall through
             }
 
-            // value, argc, frame, argi, args
             case l_eval_args: {
+                // Evaluates the arguments in <args>, placing the result in
+                // the <argi>th cell of <frame>, then recurses to evaluate the
+                // remaining arguments at <argi+1> onwards until a total of
+                // <argc> arguments have been processed.
+                //
+                // Arguments:
+                //      reg <value> - value of last argument evaluated, or V_EMPTY if none evaluated yet
+                //      reg <argc>  - total number of arguments
+                //      reg <frame> - environment frame into which to place evaluated arguments
+                //      reg <argi>  - index of evaluated argument
+                //      reg <args>  - remaining list of arguments to evaluate
+                //
+                // Allocations:
+                //      1 x closure
+                //      1 x stack frame, length 4
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -554,8 +652,19 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [argc, frame, argi, args]
             case l_eval_args_with_rest_receiver: {
+                // TODO
+                //
+                // Arguments:
+                //      reg <value>
+                //      fv0 <argc>
+                //      fv1 <frame>
+                //      fv2 <argi>
+                //      fv3 <args>
+                //
+                // Allocations:
+                //      see l_eval_args_with_rest
+                //
                 argc = GET_INT(FRAME_VAR(0));
                 frame = FRAME_VAR(1);
                 argi = GET_INT(FRAME_VAR(2));
@@ -564,8 +673,31 @@ CELL internal_execute() {
                 // fall through
             }
 
-            // value, argc, frame, argi, args
             case l_eval_args_with_rest: {
+                // Evaluates the arguments in <args>, placing the result in
+                // the <argi>th cell of <frame>, then recurses to evaluate the
+                // remaining arguments at <argi+1> onwards.
+                //
+                // After a total of <argc> arguments have been processed, any
+                // remaining entries in <args> are evaluated and appended to
+                // a list in the <argc>th cell of <frame>, which acts as the
+                // "rest" argument.
+                //
+                // Arguments:
+                //      reg <value> - value of last argument evaluated, or V_EMPTY if none evaluated yet
+                //      reg <argc>  - total number of fixed arguments
+                //      reg <frame> - environment frame into which to place evaluated arguments
+                //      reg <argi>  - index of evaluated argument
+                //      reg <args>  - remainining list of arguments to evaluate
+                //
+                // Allocations:
+                //      1 x closure
+                //      1 x stack_frame, length 4
+                //      or
+                //      1 x closure
+                //      1 x cons
+                //      1 x stack frame, length 2
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -611,8 +743,22 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [args, pre_tail]
             case l_eval_rest_args: {
+                // Receives an evaluated argument in "rest" position and appends
+                // it to a running list by setting the car of <pre_tail>, and
+                // setting the cdr to a fresh cons cell into which to places
+                // further evaluated arguments if any remain. Once no arguments
+                // remain, (void) is delivered.
+                //
+                // Arguments:
+                //      reg <value>    - evaluated argument
+                //      fv0 <args>     - remaining argument list to evaluate
+                //      fv1 <pre_tail> - final cons cell in list of accumulated argument values
+                //
+                // Allocations:
+                //      1 x cons
+                //      1 x stack_frame, length 2
+                //
                 gc_check_headroom();
                 CELL pre_tail;
                 GET_FRAME_VARS2(args, pre_tail);
@@ -644,8 +790,17 @@ CELL internal_execute() {
                 break;
             }
 
-            // [value, env]
             case l_receive_args_for_lambda: {
+                // Receives an evaluated argument list for a lambda expression,
+                // evaluates the body of the lambda, and delivers the result.
+                //
+                // Arguments:
+                //      fv0 <value> - body of lambda expression
+                //      fv1 <env>   - environment frame containing evaluated arguments
+                //
+                // Allocations:
+                //      none
+                //
                 GET_FRAME_VARS2(value, env);
 
                 if (opt_trace_eval) {
@@ -660,8 +815,18 @@ CELL internal_execute() {
                 break;
             }
 
-            // [value, argc, frame]
             case l_receive_args_for_func: {
+                // Receives an evaluated argument list, applies a built-in procedure,
+                // and delivers the result.
+                //
+                // Arguments:
+                //      fv0 <value> - func to apply
+                //      fv1 <argc>  - count of arguments
+                //      fv2 <frame> - environment frame containing <argc> evaluated arguments
+                //
+                // Allocations:
+                //      see l_receive_args_for_func_direct
+                //
                 value = FRAME_VAR(0);
                 argc = GET_INT(FRAME_VAR(1));
                 frame = FRAME_VAR(2);
@@ -669,8 +834,18 @@ CELL internal_execute() {
                 // fall through
             }
 
-            // value, argc, frame
             case l_receive_args_for_func_direct: {
+                // Receives an evaluated argument list, applies a built-in procedure,
+                // and delivers the result.
+                //
+                // Arguments:
+                //      reg <value> - func to apply
+                //      reg <argc>  - count of arguments
+                //      reg <frame> - environment frame containing <argc> evaluated arguments
+                //
+                // Allocations:
+                //      whatever is allocated by func's implementation
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -700,17 +875,33 @@ CELL internal_execute() {
             }
 
             // TODO implement multiple argument apply
-            // [value, argc, frame]
             case l_inline_apply_receiver: {
-                value = FRAME_VAR(0);
-                argc = GET_INT(FRAME_VAR(1));
+                // The receiver for the built-in "apply" procedure.
+                //
+                // Arguments:
+                //      fv0 <value> - ignored
+                //      fv1 <argc>  - ignored
+                //      fv2 <frame> - environment frame holding two arguments: <proc>, <arg-list>
+                //
+                // Allocations:
+                //      see l_inline_apply_direct
+                //
                 frame = FRAME_VAR(2);
                 //
                 // fall through
             }
 
-            // value, argc, frame
             case l_inline_apply_direct: {
+                // Applies a aprocedure to a list of arguments and delivers the result.
+                //
+                // Arguments:
+                //      reg value - ignored
+                //      reg argc  - ignored
+                //      reg frame - environment frame holding two arguments: <proc>, <arg-list>
+                //
+                // Allocations:
+                //      none
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -729,17 +920,35 @@ CELL internal_execute() {
                 break;
             }
 
-            // [value, argc, frame]
             case l_inline_callcc_receiver: {
-                value = FRAME_VAR(0);
-                argc = GET_INT(FRAME_VAR(1));
+                // The receiver for the built-in "call/cc" procedure.
+                //
+                // Arguments:
+                //      fv0 <value> - ignored
+                //      fv1 <argc>  - ignored
+                //      fv2 <frame> - environment frame holding 1 argument: <proc>
+                //
+                // Allocations:
+                //      see l_inline_callcc_direct
+                //
                 frame = FRAME_VAR(2);
                 //
                 // fall through
             }
 
-            // value, argc, frame
             case l_inline_callcc_direct: {
+                // Applies <proc> to the reification of the current continuation
+                // as its sole argument, and delivers the result.
+                //
+                // Arguments:
+                //      reg value - ignored
+                //      reg argc  - ignored
+                //      reg frame - environment frame holding 1 argument: <proc>
+                //
+                // Allocations:
+                //      1 x cons
+                //      1 x reified_continuation
+                //
                 if (opt_trace_eval) {
                     printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
@@ -754,8 +963,17 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [name]
             case l_receive_define_value: {
+                // Receives an evaluated expression and sets the given symbol's binding
+                // in the global environment to its value. Delivers (void).
+                //
+                // Arguments:
+                //      reg <value> - evaluated expression
+                //      fv0 <name>  - global symbol to update
+                //
+                // Allocations:
+                //      none
+                //
                 CELL name;
                 GET_FRAME_VARS1(name);
 
@@ -770,8 +988,17 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [variable]
             case l_receive_set_slot_value: {
+                // Receives an evaluated expression and sets the given slot's binding
+                // in the lexical environment to its value. Delivers (void).
+                //
+                // Arguments:
+                //      reg <value>    - evaluated expression
+                //      fv0 <variable> - slot to update
+                //
+                // Allocations:
+                //      none
+                //
                 CELL variable;
                 GET_FRAME_VARS1(variable);
 
@@ -786,8 +1013,17 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [variable]
             case l_receive_set_name_value: {
+                // Receives an evaluated expression, and sets the given symbol's
+                // binding in the global environment to its value. Delivers (void).
+                //
+                // Arguments:
+                //      reg <value>    - evaluated expression
+                //      fv0 <variable> - global symbol to update
+                //
+                // Allocations:
+                //      none
+                //
                 CELL variable;
                 GET_FRAME_VARS1(variable);
 
@@ -811,8 +1047,18 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [if_true]
             case l_receive_if2_test: {
+                // Receives the evaluated condition expression. If #t, evaluates
+                // the <if_true> expression and delivers it. Otherwise delivers
+                // (void).
+                //
+                // Arguments:
+                //      reg <value>   - evaluated test expression
+                //      fv0 <if_true> - unevaluated consequent expression
+                //
+                // Allocations:
+                //      none
+                //
                 CELL if_true;
                 GET_FRAME_VARS1(if_true);
 
@@ -831,8 +1077,19 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [if_true, if_false]
             case l_receive_if3_test: {
+                // Receives the evaluated condition expression. If #t, evaluates
+                // and delivers the <if_true> expression, otherwise evaluates and
+                // delivers the <if_false> expression.
+                //
+                // Arguments:
+                //      reg <value>    - evaluated test expression
+                //      fv0 <if_true>  - unevaluated consequent expression
+                //      fv1 <if_false> - unevaluated alternate expression
+                //
+                // Allocations:
+                //      none
+                //
                 CELL if_true;
                 CELL if_false;
                 GET_FRAME_VARS2(if_true, if_false);
@@ -850,8 +1107,17 @@ CELL internal_execute() {
                 break;
             }
 
-            // value
             case l_begin: {
+                // Evaluates each argument expression in turn and delivers the
+                // value of the last expression. Delivers (void) if the list
+                // of expressions is empty.
+                //
+                // Arguments:
+                //      reg <value> - list of unevaluated arguments
+                //
+                // Allocations:
+                //      1 x stack_frame, length 1
+                //
                 if (opt_trace_eval) {
                     trace_newline();
                 }
@@ -870,8 +1136,18 @@ CELL internal_execute() {
                 break;
             }
 
-            // [args]
             case l_begin2: {
+                // Receives an evaluated argument expression and ignores it.
+                // Evaluates the next remaining argument. Delivers its value
+                // if no further arguments remain, otherwise recurses.
+                //
+                // Arguments:
+                //      reg <value> - value of previous argument (ignored)
+                //      fv0 <args>  - remaining list of unevaluated arguments
+                //
+                // Allocations:
+                //      1 x stack_frame, length 1
+                //
                 value = V_EMPTY;
 
                 GET_FRAME_VARS1(args);
@@ -892,8 +1168,18 @@ CELL internal_execute() {
                 break;
             }
 
-            // value
             case l_and: {
+                // Evaluates each argument expression in turn. Delivers
+                // the first #f value, leaving any remaining expressions
+                // unevaluated. If no expression evaluates to #f, delivers
+                // the last value. Delivers #t if no arguments are supplied.
+                //
+                // Arguments:
+                //      reg <value> - list of unevaluated arguments
+                //
+                // Allocations:
+                //      1 x stack_frame, length 1
+                //
                 if (opt_trace_eval) {
                     trace_newline();
                 }
@@ -912,8 +1198,18 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [args]
             case l_and2: {
+                // Receives an evaluated argument and delivers it if #f.
+                // If only one argument remains, evaluates and delivers it.
+                // Otherwise evaluates the next remaining argument and recurses.
+                //
+                // Arguments:
+                //      reg <value> - value of previous argument
+                //      fv0 <args>  - remaining list of unevaluated arguments
+                //
+                // Allocations:
+                //      1 x stack_frame, length 1
+                //
                 GET_FRAME_VARS1(args);
 
                 if (opt_trace_eval) {
@@ -936,8 +1232,17 @@ CELL internal_execute() {
                 break;
             }
 
-            // value
             case l_or: {
+                // Evaluates each argument expression in turn. Delivers
+                // the first non-#f value, leaving any remaining expressions
+                // unevaluated. If all expressions evaluate to #f, delivers #f.
+                //
+                // Arguments:
+                //      reg <value> - list of unevaluated argument expressions
+                //
+                // Allocations:
+                //      1 x stack_frame, length 1
+                //
                 if (opt_trace_eval) {
                     trace_newline();
                 }
@@ -956,8 +1261,17 @@ CELL internal_execute() {
                 break;
             }
 
-            // value, [args]
             case l_or2: {
+                // Receives an evaluated argument, and delivers it if non-#f,
+                // otherwise evaluates the next remaining argument and recurses.
+                //
+                // Arguments:
+                //      reg <value> - evaluated argument
+                //      fv0 <args>  - remaining list of unevaluated argument expressions
+                //
+                // Allocations:
+                //      1 x stack_frame, length 1
+                //
                 GET_FRAME_VARS1(args);
 
                 if (opt_trace_eval) {
@@ -980,8 +1294,15 @@ CELL internal_execute() {
                 break;
             }
 
-            // value
             case l_return: {
+                // Receives a value and returns it from the interpreter loop.
+                //
+                // Arguments:
+                //      reg <value> - final value
+                //
+                // Allocations:
+                //      none
+                //
                 if (opt_trace_eval) {
                     trace_newline();
                 }
