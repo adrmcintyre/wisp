@@ -338,8 +338,6 @@ CELL gc_alloc_raw(
             gc_die("out of memory\n");
         }
     }
-    // FIXME better to zero everything in one go at collection time?
-    //memset(gc_next, 0, bytes);
     gc_next = bumped_next;
     if (IS_POINTER_TAG(type)) {
         result.as_bits |= type;

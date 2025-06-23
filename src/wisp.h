@@ -683,7 +683,9 @@ extern CELL make_compiled_lambda(bool is_macro, INT argc, bool want_rest, INT ma
 extern CELL make_func(const char *name, const char *help_args, const char *help_body, FUNC_ENTRY entry, LABEL receiver,
                       INT min_args, INT max_args);
 
-extern CELL make_exception(const char *fmt, ...);
+extern CELL make_exception2(CELL extra, const char *fmt, ...);
+
+#define make_exception(...) make_exception2(V_NULL, __VA_ARGS__)
 
 // ---------------------------------------------------------------------
 // Object constructors (indirect tagged)

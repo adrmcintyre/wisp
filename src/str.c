@@ -199,7 +199,7 @@ DECLARE_FUNC(
     func_string_append, 0, -1,
     "string-append", "string ...",
     "Returns the concatenation of all the arguments."
-    " Returns the empty string of no arguments are supplied."
+    " Returns the empty string if no arguments are supplied."
 )
 
 CELL func_string_append(CELL frame) {

@@ -297,17 +297,10 @@ CELL internal_execute() {
                 if (SLOTP(value)) {
                     DELIVER(env_get(env, GET_SLOT(value)));
                 } else if (SYMBOLP(value)) {
-                    const CELL ignore = value;
                     if (DEFINED_BINDING(value)) {
                         DELIVER(GET_BINDING(value));
                     } else {
-                        SYMBOL *p = GET_SYMBOL(value);
-                        if (!NULLP(p->gensym) && NULLP(p->name_str)) {
-                            THROW(make_exception("undefined name: #_%"PRId64, GET_INT(p->gensym)));
-                        } else {
-                            STRING *pname = GET_STRING(p->name_str);
-                            THROW(make_exception("undefined name: %s", pname->data));
-                        }
+                        THROW(make_exception2(value, "undefined name"));
                     }
                 } else if (COMPILED_LAMBDAP(value)) {
                     DELIVER(make_closure(value, env));
@@ -538,10 +531,10 @@ CELL internal_execute() {
                     INT max_args = GET_INT(GET_FUNC(value)->max_args);
                     if (argc < min_args) {
                         args = V_EMPTY;
-                        THROW(make_exception("%s: too few arguments", GET_STRING(GET_FUNC(value)->name_str)->data));
+                        THROW(make_exception2(value, "too few arguments"));
                     } else if (max_args >= 0 && argc > max_args) {
                         args = V_EMPTY;
-                        THROW(make_exception("%s: too many arguments", GET_STRING(GET_FUNC(value)->name_str)->data));
+                        THROW(make_exception2(value, "too many arguments"));
                     } else {
                         // this consumes heap on every function invocation
                         frame = make_env(argc, env);
@@ -574,7 +567,7 @@ CELL internal_execute() {
                     }
                 } else {
                     args = V_EMPTY;
-                    THROW(make_exception("operator is not a function"));
+                    THROW(make_exception2(value, "operator is not a function"));
                 }
                 break;
             }
@@ -864,7 +857,7 @@ CELL internal_execute() {
                 frame = V_EMPTY;
                 if (EXCEPTIONP(result)) {
                     EXCEPTION *p = GET_EXCEPTION(result);
-                    if (NULLP(p->source_str)) {
+                    if (FALSEP(p->source_str)) {
                         p->source_str = GET_FUNC(fn)->name_str;
                     }
                     THROW(result);
@@ -1035,11 +1028,7 @@ CELL internal_execute() {
 
                 SYMBOL *p = GET_SYMBOL(variable);
                 if (UNDEFINEDP(p->binding)) {
-                    if (!NULLP(p->gensym) && NULLP(p->name_str)) {
-                        THROW(make_exception("cannot set undefined identifier #_%"PRId64, p->gensym));
-                    } else {
-                        THROW(make_exception("cannot set undefined identifier %s", GET_STRING(p->name_str)->data));
-                    }
+                    THROW(make_exception2(variable, "cannot set undefined identifier"));
                 } else {
                     GET_SYMBOL(variable)->binding = value;
                     DELIVER(V_VOID);
@@ -1374,7 +1363,7 @@ CELL func_null_environment(CELL frame) {
     ASSERT_INTP(0);
     const INT version = GET_INT(FV0);
     if (version != 5) {
-        return make_exception("unsupported version");
+        return make_exception2(FV0, "unsupported version");
     }
     // TODO - as environments are not currently supported just return '() as a placeholder.
     return V_NULL;
@@ -1391,7 +1380,7 @@ CELL func_scheme_report_environment(CELL frame) {
     ASSERT_INTP(0);
     const INT version = GET_INT(FV0);
     if (version != 5) {
-        return make_exception("unsupported version");
+        return make_exception2(FV0, "unsupported version");
     }
     // TODO - as environments are not currently supported just return '() as a placeholder.
     return V_NULL;

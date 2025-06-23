@@ -21,7 +21,7 @@ DECLARE_FUNC(
     func_make_vector, 1, 2,
     "make-vector", "len:integer obj",
     "Returns a new vector of <len> elements, each initialised to <obj>,"
-    " or to the integer 0 if <obj> is not supplied."
+    " otherwise the initial contents of each element is unspecified."
 )
 
 CELL func_make_vector(CELL frame) {
@@ -30,7 +30,10 @@ CELL func_make_vector(CELL frame) {
     if (!(len >= 0)) {
         return make_exception("expects non-negative length at argument 1");
     }
-    const CELL obj = (FC == 1) ? make_int(0) : FV1;
+    // TODO - V_NULL corresponds to all-zeroes bit pattern, so we could rely on
+    // the memory system to give us zero-inited memory instead of having to
+    // explicitly init.
+    const CELL obj = (FC == 1) ? V_NULL : FV1;
     return make_vector_inited(len, obj);
 }
 

@@ -84,7 +84,7 @@ CELL make_func(
     return func;
 }
 
-CELL make_exception(const char *fmt, ...) {
+CELL make_exception2(CELL extra, const char *fmt, ...) {
     // Form the string in a local buf, so a GC while allocing
     // the exception doesn't trash any heap pointers passed in.
     char buf[256];
@@ -94,13 +94,13 @@ CELL make_exception(const char *fmt, ...) {
     va_end(ap);
 
     CELL message = make_immutable_string(buf);
-    gc_root_1("make_exception", message);
+    gc_root_2("make_exception", extra, message);
 
     CELL exception = gc_alloc(EXCEPTION);
     EXCEPTION *p = GET_EXCEPTION(exception);
-    p->source_str = V_NULL;
+    p->source_str = V_FALSE;
     p->message_str = message;
-    p->extra = V_NULL;
+    p->extra = extra;
 
     gc_unroot();
     return exception;

@@ -186,7 +186,7 @@ CELL func_vm_run(CELL frame) {
                     const CELL result = (*func_entry)(func_frame);
                     if (EXCEPTIONP(result)) {
                         EXCEPTION *exn = GET_EXCEPTION(result);
-                        if (NULLP(exn->source_str)) {
+                        if (FALSEP(exn->source_str)) {
                             exn->source_str = GET_FUNC(value)->name_str;
                         }
                         gc_unroot();
