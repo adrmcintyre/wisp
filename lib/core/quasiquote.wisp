@@ -26,7 +26,7 @@
                     (let* ((arg (second x))
                            (x-arg (expand arg 1)))
                         (if (eq? x-arg qq-unexpanded)
-                            arg
+                            (list 'quote arg)
                             x-arg))))
             x))
 

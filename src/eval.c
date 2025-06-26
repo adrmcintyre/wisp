@@ -623,9 +623,10 @@ CELL internal_execute() {
                 // initially V_EMPTY when we're called for the first time
                 // (i.e. *before* receiving the first result from l_eval)
                 if (!EMPTYP(value)) {
-                    if (COMPILED_LAMBDAP(value)) {
-                        value = make_closure(value, env);
-                    }
+                    // TODO what was this intended to achieve?!
+                    //if (COMPILED_LAMBDAP(value)) {
+                    //    value = make_closure(value, env);
+                    //}
                     GET_ENV(frame)->cells[argi++] = value;
                 }
 
@@ -1428,6 +1429,28 @@ DECLARE_INLINE(
     "Calls <proc> with the current continuation."
 )
 
+DECLARE_FUNC(
+    func_closurep, 1, 1,
+    "%closure?", "obj",
+    "Returns #t if <obj> is a closure, otherwise #f."
+)
+
+CELL func_closurep(CELL frame) {
+    return make_bool(CLOSUREP(FV0));
+}
+
+DECLARE_FUNC(
+    func_closure_lambda, 1, 1,
+    "%closure-lambda", "closure",
+    "Returns the compiled-lambda contained by <closure>."
+)
+
+CELL func_closure_lambda(CELL frame) {
+    ASSERT_CLOSUREP(0);
+    const CLOSURE *p = GET_CLOSURE(FV0);
+    return p->compiled_lambda;
+}
+
 void eval_register_symbols() {
     register_func(&meta_apply);
     register_func(&meta_eval);
@@ -1443,6 +1466,9 @@ void eval_register_symbols() {
     register_func(&meta_func_null_environment);
     register_func(&meta_func_scheme_report_environment);
     register_func(&meta_func_interaction_environment);
+
+    register_func(&meta_func_closurep);
+    register_func(&meta_func_closure_lambda);
 
     gc_root_static(sp);
     gc_root_static(cont);

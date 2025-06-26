@@ -587,7 +587,8 @@ typedef struct {
 
 #define ASSERT_ARG(i, PRED, TYPE) \
     if (!PRED(FV[i])) { \
-        return make_exception("expects <" TYPE "> at argument %lld", (INT)i+1); \
+      /*return make_exception("expects <" TYPE "> at argument %lld", (INT)i+1); */ \
+        return make_exception2(FV[i], "expects <" TYPE "> at argument %lld", (INT)i+1); \
     }
 
 #define ASSERT_ALL(ASSERTION) \
@@ -608,6 +609,8 @@ typedef struct {
 #define ASSERT_STACK_FRAMEP(i) ASSERT_ARG(i, STACK_FRAMEP, "stack-frame")
 #define ASSERT_SYMBOLP(i) ASSERT_ARG(i, SYMBOLP, "symbol")
 #define ASSERT_VECTORP(i) ASSERT_ARG(i, VECTORP, "vector")
+#define ASSERT_COMPILED_LAMBDAP(i) ASSERT_ARG(i, COMPILED_LAMBDAP, "compiled-lambda")
+#define ASSERT_CLOSUREP(i) ASSERT_ARG(i, CLOSUREP, "closure")
 
 #define ASSERT_PORTP(i, IO, RW) \
     if (!PORTP(FV[i]) || GET_CHAR(GET_PORT(FV[i])->mode_ch) != RW) { \

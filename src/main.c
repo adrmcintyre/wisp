@@ -131,10 +131,10 @@ void register_symbols() {
 
 static void print_exception(CELL exn) {
     EXCEPTION *p = GET_EXCEPTION(exn);
-    internal_generic_output(stdout, p->message_str, false, 0);
+    internal_generic_output(stdout, p->message_str, false);
     if (!FALSEP(p->source_str)) {
         fputs(": ", stdout);
-        internal_generic_output(stdout, p->source_str, false, 0);
+        internal_generic_output(stdout, p->source_str, false);
     }
     if (!NULLP(p->extra)) {
         fputs(": ", stdout);

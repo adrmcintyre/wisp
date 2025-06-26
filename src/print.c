@@ -16,7 +16,7 @@ void internal_print_env(FILE *fp, CELL env) {
                 fprintf(fp, ", ");
             }
             fprintf(fp, "#%"PRId64"=", depth + i);
-            internal_generic_output(fp, p->cells[i], true, 0);
+            internal_generic_output(fp, p->cells[i], true);
         }
         fputc('}', fp);
         env = p->next;
@@ -27,7 +27,7 @@ void internal_print_env(FILE *fp, CELL env) {
     fputc(']', fp);
 }
 
-void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
+void internal_generic_output(FILE *fp, CELL cell, bool strict) {
     switch (GET_TYPE(cell)) {
         case T_VOID: {
             fputs("#<void>", fp);
@@ -158,33 +158,19 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
             break;
         }
 
-        // FIXME - arbitrary recursion
         case T_CONS: {
             fputc('(', fp);
-            if (tab > 0) {
-                ++tab;
-            }
-            bool did = false;
             while (1) {
                 const CELL car = CAR(cell);
-                const bool pair = CONSP(car);
-                if (!did && tab > 0 && pair && !CONSP(CAR(car))) {
-                    fprintf(fp, "\n%*s", (tab - 1) * 2, "");
-                }
-                internal_generic_output(fp, car, strict, tab);
+                internal_generic_output(fp, car, strict);
                 cell = CDR(cell);
                 if (NULLP(cell)) {
                     break;
                 }
-                did = tab > 0 && pair;
-                if (did) {
-                    fprintf(fp, "\n%*s", (tab - 1) * 2, "");
-                } else {
-                    fputc(' ', fp);
-                }
+                fputc(' ', fp);
                 if (!CONSP(cell)) {
                     fputs(". ", fp);
-                    internal_generic_output(fp, cell, strict, tab);
+                    internal_generic_output(fp, cell, strict);
                     break;
                 }
             }
@@ -192,7 +178,6 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
             break;
         }
 
-        // FIXME - arbitrary recursion
         case T_VECTOR: {
             const VECTOR *vec = GET_VECTOR(cell);
             fputs("#(", fp);
@@ -200,7 +185,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
                 if (i > 0) {
                     fputc(' ', fp);
                 }
-                internal_generic_output(fp, vec->data[i], strict, tab);
+                internal_generic_output(fp, vec->data[i], strict);
             }
             fputc(')', fp);
             break;
@@ -219,9 +204,6 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
         }
         /*
         {
-            if (tab) {
-                ++tab;
-            }
             const COMPILED_LAMBDA *l = GET_COMPILED_LAMBDA(cell);
             const INT flags = GET_INT(l->flags);
             fprintf(fp, "#<%s %"PRId64"%s:%"PRId64"/%"PRId64,
@@ -231,14 +213,9 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
                     GET_INT(l->depth),
                     GET_INT(l->max_slot));
 
-            if (tab) {
-                fprintf(fp, "\n%*s", (tab-1)*2, "");
-            }
-            else {
-                fputc(' ', fp);
-            }
+            fputc(' ', fp);
 
-            internal_generic_output(fp, l->body, strict, tab);
+            internal_generic_output(fp, l->body, strict);
             fputc('>', fp);
         }
         break;
@@ -250,20 +227,11 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
         }
         /*
         {
-            if (tab) {
-                ++tab;
-            }
             const CLOSURE *c = GET_CLOSURE(cell);
             fprintf(fp, "#<closure ");
-            if (tab) {
-                fprintf(fp, "\n%*s", (tab-1)*2, "");
-            }
             internal_print_env(fp, c->env);
-            if (tab) {
-                fprintf(fp, "\n%*s", (tab-1)*2, "");
-            }
             fputc(' ', fp);
-            internal_generic_output(fp, c->compiled_lambda, strict, tab);
+            internal_generic_output(fp, c->compiled_lambda, strict);
             fputc('>', fp);
         }
         break;
@@ -272,7 +240,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
         case T_EXCEPTION: {
             const EXCEPTION *p = GET_EXCEPTION(cell);
             fputs("#<exception:", fp);
-            internal_generic_output(fp, p->message_str, false, 0);
+            internal_generic_output(fp, p->message_str, false);
             fputc('>', fp);
         }
         break;
@@ -337,7 +305,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict, int tab) {
 }
 
 void internal_print(FILE *fp, CELL cell) {
-    internal_generic_output(fp, cell, true, 0);
+    internal_generic_output(fp, cell, true);
 }
 
 void print_register_symbols() {

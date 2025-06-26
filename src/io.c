@@ -202,8 +202,6 @@ GEN_INPUT_FUNC(
     return internal_read(&rchan, V_EMPTY)
 )
 
-// (optional port? arg1)
-// (or (char? result) (eof-object? result))
 GEN_INPUT_FUNC(
     func_read_char,
     "read-char",
@@ -223,7 +221,6 @@ GEN_INPUT_FUNC(
     const int ch = internal_peek_char(&rchan); return (ch == EOF) ? V_EOF : make_char(ch)
 )
 
-// Throws a not implemented exception.
 GEN_INPUT_FUNC(
     func_char_readyp,
     "char-ready?",
@@ -231,9 +228,6 @@ GEN_INPUT_FUNC(
     return make_exception("not implemented")
 )
 
-// (eof-object? result)
-// Returns the unique object which satisfies the eof-object? predicate, used
-// for indicating end-of-stream conditions,
 DECLARE_FUNC(
     func_eof_objectp, 1, 1,
     "eof-object?", "obj",
@@ -257,27 +251,28 @@ CELL func_write(CELL frame) {
     }
     const CELL port = (FC == 2) ? FV1 : current_output_port;
     FILE *fp = GET_PORT(port)->fp;
-    internal_generic_output(fp, FV0, 1, 0);
+    internal_generic_output(fp, FV0, true);
     return V_VOID;
 }
 
 DECLARE_FUNC(
-    func_pretty_print, 1, 2,
-    "pretty-print", "obj [output-port]",
-    "Writes a formatted representation of <obj> to the <output-port>."
-    " Compared to the write procedure additional whitespace and linebreaks"
-    " are included to improve human readability."
-    " If <output-port> is not supplied, (current-output-port) is used instead."
+    func_write_atom, 2, 2,
+    "%write-atom", "obj output-port",
+    "Writes the textual representation of <obj> to <output-port>."
 )
 
-CELL func_pretty_print(CELL frame) {
-    if (FC == 2) {
-        ASSERT_OUTPUT_PORTP(1);
-    }
-    const CELL port = (FC == 2) ? FV1 : current_output_port;
+CELL func_write_atom(CELL frame) {
+    ASSERT_OUTPUT_PORTP(1);
+    const CELL obj = FV0;
+    const CELL port = FV1;
     FILE *fp = GET_PORT(port)->fp;
-    internal_generic_output(fp, FV0, 1, 1);
-    fputc('\n', fp);
+    if (CONSP(obj)) {
+        fputs("#<pair>", fp);
+    } else if (VECTORP(obj)) {
+        fputs("#<vector>", fp);
+    } else {
+        internal_generic_output(fp, FV0, true);
+    }
     return V_VOID;
 }
 
@@ -314,7 +309,30 @@ CELL func_display(CELL frame) {
     }
     const CELL port = (FC == 2) ? FV1 : current_output_port;
     FILE *fp = GET_PORT(port)->fp;
-    internal_generic_output(fp, FV0, 0, 0);
+    internal_generic_output(fp, FV0, false);
+    return V_VOID;
+}
+
+DECLARE_FUNC(
+    func_display_atom, 2, 2,
+    "%display-atom", "obj output-port",
+    "Writes a representation of <obj> to <output-port>. Strings are not enclosed"
+    " in double quotes, and no characters are escaped within strings. Character"
+    " objects appear as if written by write-char instead of by write-atom."
+)
+
+CELL func_display_atom(CELL frame) {
+    ASSERT_OUTPUT_PORTP(1);
+    const CELL obj = FV0;
+    const CELL port = FV1;
+    FILE *fp = GET_PORT(port)->fp;
+    if (CONSP(obj)) {
+        fputs("#<pair>", fp);
+    } else if (VECTORP(obj)) {
+        fputs("#<vector>", fp);
+    } else {
+        internal_generic_output(fp, FV0, false);
+    }
     return V_VOID;
 }
 
@@ -347,10 +365,6 @@ CELL func_load(CELL frame) {
     return internal_load(GET_STRING(FV0)->data);
 }
 
-// (optional bool? arg1))
-// (optional bool? result)
-// If arg1 is supplied, sets the load tracing flag accordingly.
-// The result is the current value of the load tracing flag if arg1 is not supplied.
 DECLARE_FUNC(
     func_trace_load, 0, 1,
     "trace-load", "[new:boolean]",
@@ -393,8 +407,9 @@ void io_register_symbols() {
     register_func(&meta_func_char_readyp);
 
     register_func(&meta_func_write);
-    register_func(&meta_func_pretty_print);
+    register_func(&meta_func_write_atom);
     register_func(&meta_func_display);
+    register_func(&meta_func_display_atom);
     register_func(&meta_func_newline);
     register_func(&meta_func_write_char);
 

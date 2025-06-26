@@ -34,5 +34,5 @@ void trace_env(CELL env) {
 }
 
 void trace_cell(CELL cell) {
-    internal_generic_output(stdout, cell, true, 0 * trace_depth);
+    internal_generic_output(stdout, cell, true);
 }

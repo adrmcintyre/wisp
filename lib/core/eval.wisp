@@ -14,5 +14,5 @@
 ;   compilation into a form the dispatch loop can execute
 ;   evaluation by dispatch loop
 (define (eval expr env)
-    (%eval (%compile (*core:macro-expander* expr)) env))
+    (%eval (core:compile (*core:macro-expander* expr)) env))
 

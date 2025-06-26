@@ -58,9 +58,7 @@ CELL dup_check(char *caller, INT n, CELL var, CELL checklist) {
     }
     for (INT i = 0; i < n; ++i) {
         if (EQP(CAR(checklist), var)) {
-            SYMBOL *p = GET_SYMBOL(var);
-            STRING *pname = GET_STRING(p->name_str);
-            return make_exception("%s: repeated identifier '%.*s'", caller, pname->len, pname->data);
+            return make_exception2(var, "%s: repeated identifier", caller);
         }
         checklist = CDR(checklist);
     }
@@ -447,7 +445,93 @@ CELL func_trace_compile(CELL frame) {
     return make_bool(old_value);
 }
 
+DECLARE_FUNC(
+    func_make_slot, 1, 1,
+    "%make-slot", "slot:integer",
+    "Returns a <slot> identifier."
+)
+
+CELL func_make_slot(CELL frame) {
+    ASSERT_INTP(0);
+    return make_slot(GET_INT(FV0));
+}
+
+DECLARE_FUNC(
+    func_slotp, 1, 1,
+    "%slot?", "obj",
+    "Returns #t if <obj> is a slot identifier, otherwise #f."
+)
+
+CELL func_slotp(CELL frame) {
+    return make_bool(SLOTP(FV0));
+}
+
+DECLARE_FUNC(
+    func_make_compiled_lambda, 6, 6,
+    "%make-compiled-lambda", "macro?:boolean argc:integer rest?:boolean max-slot:integer depth:integer body:obj",
+    "Returns a <compiled-lambda> object."
+)
+
+CELL func_make_compiled_lambda(CELL frame) {
+    ASSERT_BOOLP(0);
+    ASSERT_INTP(1);
+    ASSERT_BOOLP(2);
+    ASSERT_INTP(3);
+    ASSERT_INTP(4);
+    const bool is_macro = GET_BOOL(FV0);
+    const INT argc = GET_INT(FV1);
+    const bool want_rest = GET_BOOL(FV2);
+    const INT max_slot = GET_INT(FV3);
+    const INT depth = GET_INT(FV4);
+    const CELL body = FV5;
+    return make_compiled_lambda(is_macro, argc, want_rest, max_slot, depth, body);
+}
+
+DECLARE_FUNC(
+    func_compiled_lambdap, 1, 1,
+    "%compiled-lambda?", "obj",
+    "Returns #t if <obj> is a compiled-lambda, otherwise #f."
+)
+
+CELL func_compiled_lambdap(CELL frame) {
+    return make_bool(COMPILED_LAMBDAP(FV0));
+}
+
+DECLARE_FUNC(
+    func_compiled_lambda2vector, 1, 1,
+    "%compiled-lambda->vector", "compiled-lambda",
+    "Returns a vector of <compiled-lambda>'s properties.\n"
+    "#(macro? argc rest? max-slot depth body)."
+)
+
+CELL func_compiled_lambda2vector(CELL frame) {
+    ASSERT_COMPILED_LAMBDAP(0);
+    gc_root_1("%compiled-lambda->vector", frame);
+    gc_check_headroom();
+    gc_unroot();
+
+    CELL vector = make_vector_uninited(6);
+    CELL *data = GET_VECTOR(vector)->data;
+
+    const COMPILED_LAMBDA *p = GET_COMPILED_LAMBDA(FV0);
+    const INT flags = GET_INT(p->flags);
+
+    *data++ = make_bool(flags & LAMBDA_FLAG_MACRO);
+    *data++ = p->argc;
+    *data++ = make_bool(flags & LAMBDA_FLAG_REST);
+    *data++ = p->max_slot;
+    *data++ = p->depth;
+    *data++ = p->body;
+
+    return vector;
+}
+
 void compile_register_symbols() {
     register_func(&meta_func_compile);
     register_func(&meta_func_trace_compile);
+    register_func(&meta_func_make_slot);
+    register_func(&meta_func_slotp);
+    register_func(&meta_func_make_compiled_lambda);
+    register_func(&meta_func_compiled_lambdap);
+    register_func(&meta_func_compiled_lambda2vector);
 }
