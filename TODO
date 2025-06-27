@@ -13,4 +13,3 @@ Flesh out the repl.
 
 Get byte code compiler working properly.
 
-Trap memory faults to trigger gc.

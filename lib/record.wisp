@@ -8,8 +8,8 @@
     `(begin
        ,@(let ((&make-rec (string->symbol (string-append "make-" &rec-str)))
              (&rec? (string->symbol (string-append &rec-str "?"))))
-         `((define (,&make-rec . ,&slots)
-             (%record ',&rec . ,&slots))
+         `((define (,&make-rec ,@&slots)
+             (%record ',&rec ,@&slots))
            (define (,&rec? ,&x)
              (and
                (record? ,&x)

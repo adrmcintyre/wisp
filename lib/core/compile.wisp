@@ -173,7 +173,7 @@
     (define (compile-lambda-or-macro argc args env depth max-slot is-macro)
         (define err-bad-lambda "ill-formed lambda expression")
         (define err-bad-macro "ill-formed macro expression")
-        (or (>= 2 argc)
+        (or (>= argc 2)
             (compiler-error (if is-macro err-bad-macro err-bad-lambda)))
         (let ((formals (first args))
               (body (rest args)))

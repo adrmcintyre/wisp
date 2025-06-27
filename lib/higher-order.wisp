@@ -130,8 +130,8 @@
 	(let ((type?     (string->symbol (string-append        (symbol->string type) "?")))
 		  (with-type (string->symbol (string-append "with" (symbol->string type)    ))))
 		`(begin
-			(define (,type . ,args)
-				(list ',type . ,args))
+			(define (,type ,@args)
+				(list ',type ,@args))
 			(define (,type? x)
 				(eq? (first x) ',type))
 			(define (,with-type x fn)

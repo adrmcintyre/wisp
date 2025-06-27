@@ -50,5 +50,5 @@ void control_register_symbols() {
     register_func(&meta_func_help);
 
     // FIXME - still to implement (!)
-    // force, delay, call/cc, values, call-with-values, dynamic-wind
+    // force, delay, values, call-with-values, dynamic-wind
 }

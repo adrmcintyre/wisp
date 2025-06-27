@@ -39,7 +39,7 @@
 
   ; assert (all symbol? cons-form)
   (define (make-record-constructor rec-type cons-form)
-    `(%record ,rec-type . ,(cdr cons-form)))
+    `(%record ,rec-type ,@(cdr cons-form)))
 
   ; accessor-spec ::= (tag getter)
   ;                 | (tag getter setter)

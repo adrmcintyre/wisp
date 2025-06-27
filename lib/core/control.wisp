@@ -9,7 +9,7 @@
     (if (null? clauses) (void)
       (if (eq? (caar clauses) 'else)
         (if (null? (cdr clauses))
-          `(begin . ,(cdar clauses))
+          `(begin ,@(cdar clauses))
           (error "cond: else in non-final position"))
         (if (null? (cdar clauses))
           (let ((sym (gensym)))
@@ -23,7 +23,7 @@
                    (,@(cddar clauses) ,sym)
                    ,(expand-cond (cdr clauses)))))
             `(if ,(caar clauses)
-               (begin . ,(cdar clauses))
+               (begin ,@(cdar clauses))
                ,(expand-cond (cdr clauses))))))))
   (expand-cond clauses))
 
@@ -38,16 +38,15 @@
       (if (null? clauses) (void)
         (if (eq? (caar clauses) 'else)
           (if (null? (cdr clauses))
-            `(begin . ,(cdar clauses))
+            `(begin ,@(cdar clauses))
             (error "case: else in non-final position"))
           `(if (memv ,keyvar ',(caar clauses))
-             (begin . ,(cdar clauses))
+             (begin ,@(cdar clauses))
              ,(loop (cdr clauses)))))))
   (let ((keyvar (gensym)))
     `(let ((,keyvar ,key))
        ,(expand-case keyvar clauses))))
 
-; TODO - add a better 'do' implementation
 (define-macro (do bindings test-and-result . body)
   (let ((variables (map first bindings))
         (inits (map second bindings))
@@ -62,9 +61,9 @@
     `(letrec ((,loop
                 (lambda ,variables
                   (if ,test
-                    (begin . ,result)
+                    (begin ,@result)
                     (begin 
                       ,@body
-                      (,loop . ,steps))))))
-       (,loop . ,inits))))
+                      (,loop ,@steps))))))
+       (,loop ,@inits))))
 
