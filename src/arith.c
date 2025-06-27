@@ -356,65 +356,104 @@ GEN_ARITH_COMPARE_FUNC(func_arith_eq, "=", "real ...", ==)
 GEN_ARITH_COMPARE_FUNC(func_arith_ge, ">=", "real ...", >=)
 GEN_ARITH_COMPARE_FUNC(func_arith_gt, ">", "real ...", >);
 
-#define GEN_ARITH_LOOP(TYPE, CONVERT, INIT, ARITH_OP, IS_SUB, IS_DIV, IS_EXACT, FINALISE) \
+#define GEN_ARITH_LOOP(TYPE, CONVERT, INIT, ARITH_OP, IS_SUB, IS_EXACT, FINALISE) \
     do { \
         TYPE accum = INIT; \
         INT argi = 0; \
-        if ((IS_SUB || IS_DIV) && FC > 1) { \
+        if (IS_SUB && FC > 1) { \
             accum = CONVERT(FV[argi]); \
             argi++; \
         } \
         for (; argi < FC; argi++) { \
             const TYPE arg = CONVERT(FV[argi]); \
-            if (IS_DIV && IS_EXACT && arg == 0) { \
-                return make_exception("division by zero"); \
-            } \
-            accum = accum ARITH_OP CONVERT(FV[argi]); \
+            accum = accum ARITH_OP arg; \
         } \
         return FINALISE(accum); \
     } while (0)
 
-#define GEN_ARITH_FUNC(FUNC_PTR, SYMBOL_NAME, HELP, INIT, ARITH_OP, IS_SUB, IS_DIV) \
-    DECLARE_FUNC(FUNC_PTR, ((IS_SUB || IS_DIV) ? 1 : 0), -1, SYMBOL_NAME, "z1:real z2:real ...", HELP) \
+#define GEN_ARITH_FUNC(FUNC_PTR, SYMBOL_NAME, HELP, INIT, ARITH_OP, IS_SUB) \
+    DECLARE_FUNC(FUNC_PTR, IS_SUB, -1, SYMBOL_NAME, "z1:real z2:real ...", HELP) \
     CELL FUNC_PTR(CELL frame) { \
         const CELL inexact = has_inexact_args(frame); \
         if (EXCEPTIONP(inexact)) { \
             return inexact; \
         } \
         if (TRUEP(inexact)) { \
-            GEN_ARITH_LOOP(FLOAT, NUMBER_AS_FLOAT, INIT, ARITH_OP, IS_SUB, IS_DIV, false, make_float); \
+            GEN_ARITH_LOOP(FLOAT, NUMBER_AS_FLOAT, INIT, ARITH_OP, IS_SUB, false, make_float); \
         } else { \
-            GEN_ARITH_LOOP(INT, GET_INT, INIT, ARITH_OP, IS_SUB, IS_DIV, true, make_int); \
+            GEN_ARITH_LOOP(INT, GET_INT, INIT, ARITH_OP, IS_SUB, true, make_int); \
         } \
     }
+
+DECLARE_FUNC(
+    func_div, 1, -1,
+    "/", "z1:real zr:real ...",
+    "Returns <z1> divided by all subsequent arguments, i.e. <z1> / <z2> ... / <zn>."
+    " Returns the inverse of <z1> if called with one argument."
+)
+
+CELL func_div(CELL frame) {
+    CELL inexact = has_inexact_args(frame);
+    if (EXCEPTIONP(inexact)) {
+        return inexact;
+    }
+
+    INT argi = 0;
+    INT i_accum = 1;
+    FLOAT f_accum = 1;
+
+    if (FC > 1) {
+        if (TRUEP(inexact)) {
+            f_accum = NUMBER_AS_FLOAT(FV0);
+        } else {
+            i_accum = GET_INT(FV0);
+        }
+        argi++;
+    }
+    for (; argi < FC; argi++) {
+        const INT arg = GET_INT(FV[argi]);
+        if (arg == 0) {
+            return make_exception("division by zero");
+        }
+        const INT q = i_accum / arg;
+        if (q * arg != i_accum) {
+            f_accum = i_accum;
+            inexact = V_TRUE;
+            break;
+        }
+        i_accum = q;
+    }
+
+    if (TRUEP(inexact)) {
+        for (; argi < FC; argi++) {
+            const FLOAT arg = NUMBER_AS_FLOAT(FV[argi]);
+            f_accum /= arg;
+        }
+        return make_float(f_accum);
+    }
+    return make_int(i_accum);
+}
 
 GEN_ARITH_FUNC(
     func_add,
     "+",
     "Returns the sum of all its arguments, i.e. <z1> + <z2> ... + <zn>."
     " Returns 0 if called with no arguments.",
-    0, +, false, false
+    0, +, false
 );
 GEN_ARITH_FUNC(
     func_sub,
     "-",
     "Returns <z1> diminished by the sum of all subsequent arguments, i.e. <z1> - <z2> ... - <zn>."
     " Returns the negation of <z1> if called with one argument.",
-    0, -, true, false
+    0, -, true
 );
 GEN_ARITH_FUNC(
     func_mul,
     "*",
     "Returns the product of all its arguments, i.e. <z1> * <z2> ... * <zn>."
     " Returns 1 if called with no arguments.",
-    1, *, false, false
-);
-GEN_ARITH_FUNC(
-    func_div,
-    "/",
-    "Returns <z1> divided by all subsequent arguments, i.e. <z1> / <z2> ... / <zn>."
-    " Returns the inverse of <z1> if called with one argument.",
-    1, /, false, true
+    1, *, false
 );
 
 #define GEN_ARITH_MIN_MAX_LOOP(TYPE, CONVERT, MIN_MAX_OP, FINALISE) \
