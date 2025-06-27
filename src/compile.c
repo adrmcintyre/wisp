@@ -65,7 +65,6 @@ CELL dup_check(char *caller, INT n, CELL var, CELL checklist) {
     return V_VOID;
 }
 
-// FIXME - not very efficient!
 // symbol: SYMBOL
 // *max_slot: int
 // depth: int
