@@ -344,7 +344,6 @@ DECLARE_FUNC(
     " where the first element has index 0."
 )
 
-// TODO this is broken for (list-tail '() 0)
 CELL func_list_tail(CELL frame) {
     ASSERT_LISTP(0);
     ASSERT_INTP(1);
