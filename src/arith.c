@@ -385,6 +385,28 @@ GEN_ARITH_COMPARE_FUNC(func_arith_gt, ">", "real ...", >);
         } \
     }
 
+GEN_ARITH_FUNC(
+    func_add,
+    "+",
+    "Returns the sum of all its arguments, i.e. <z1> + <z2> ... + <zn>."
+    " Returns 0 if called with no arguments.",
+    0, +, false
+);
+GEN_ARITH_FUNC(
+    func_sub,
+    "-",
+    "Returns <z1> diminished by the sum of all subsequent arguments, i.e. <z1> - <z2> ... - <zn>."
+    " Returns the negation of <z1> if called with one argument.",
+    0, -, true
+);
+GEN_ARITH_FUNC(
+    func_mul,
+    "*",
+    "Returns the product of all its arguments, i.e. <z1> * <z2> ... * <zn>."
+    " Returns 1 if called with no arguments.",
+    1, *, false
+);
+
 DECLARE_FUNC(
     func_div, 1, -1,
     "/", "z1:real zr:real ...",
@@ -433,28 +455,6 @@ CELL func_div(CELL frame) {
     }
     return make_int(i_accum);
 }
-
-GEN_ARITH_FUNC(
-    func_add,
-    "+",
-    "Returns the sum of all its arguments, i.e. <z1> + <z2> ... + <zn>."
-    " Returns 0 if called with no arguments.",
-    0, +, false
-);
-GEN_ARITH_FUNC(
-    func_sub,
-    "-",
-    "Returns <z1> diminished by the sum of all subsequent arguments, i.e. <z1> - <z2> ... - <zn>."
-    " Returns the negation of <z1> if called with one argument.",
-    0, -, true
-);
-GEN_ARITH_FUNC(
-    func_mul,
-    "*",
-    "Returns the product of all its arguments, i.e. <z1> * <z2> ... * <zn>."
-    " Returns 1 if called with no arguments.",
-    1, *, false
-);
 
 #define GEN_ARITH_MIN_MAX_LOOP(TYPE, CONVERT, MIN_MAX_OP, FINALISE) \
     do { \
