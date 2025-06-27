@@ -271,6 +271,9 @@ CELL internal_execute() {
                     trace_newline();
                 }
 
+                // Evaluation of "eval" effectively takes place in
+                // an empty lexical environment.
+                env = V_EMPTY;
                 value = GET_ENV(frame)->cells[0];
                 args = V_EMPTY;
                 frame = V_EMPTY;
