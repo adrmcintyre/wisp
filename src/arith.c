@@ -432,20 +432,24 @@ CELL func_div(CELL frame) {
         }
         argi++;
     }
-    for (; argi < FC; argi++) {
-        const INT arg = GET_INT(FV[argi]);
-        if (arg == 0) {
-            return make_exception("division by zero");
+    if (FALSEP(inexact)) {
+        // process as exact while possible
+        for (; argi < FC; argi++) {
+            const INT arg = GET_INT(FV[argi]);
+            if (arg == 0) {
+                return make_exception("division by zero");
+            }
+            const INT quot = i_accum / arg;
+            if (quot * arg != i_accum) {
+                // if we couldn't divide exactly, perform this
+                // and subsequent divisions with floats
+                f_accum = i_accum;
+                inexact = V_TRUE;
+                break;
+            }
+            i_accum = quot;
         }
-        const INT q = i_accum / arg;
-        if (q * arg != i_accum) {
-            f_accum = i_accum;
-            inexact = V_TRUE;
-            break;
-        }
-        i_accum = q;
     }
-
     if (TRUEP(inexact)) {
         for (; argi < FC; argi++) {
             const FLOAT arg = NUMBER_AS_FLOAT(FV[argi]);

@@ -1,12 +1,3 @@
-Integer / should return float unless exact.
-I.e. 
-    q = a / b
-    if (q * b == a) {
-        return INT(q);
-    } else {
-        return FLOAT((double)a / b)
-    }
-
 Macros should be shadowed by let and lambda bindings.
 
 Flesh out the repl.
