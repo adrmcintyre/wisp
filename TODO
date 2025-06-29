@@ -1,3 +1,5 @@
+Support multiple values.
+
 Macros should be shadowed by let and lambda bindings.
 
 Flesh out the repl.

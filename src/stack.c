@@ -25,7 +25,7 @@ CELL func_stack_framep(CELL frame) {
 
 DECLARE_FUNC(
     func_continuation2stack_frame, 1, 1,
-    "continuation->stack-frame", "continuation",
+    "%continuation->stack-frame", "continuation",
     "Returns the stack frame referenced by <continuation>"
 )
 

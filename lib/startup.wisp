@@ -28,6 +28,7 @@
 (require "core/quasiquote")
 (require "core/compile")
 (require "core/eval")
+(require "core/dynamic-wind")
 (require "core/syntax-rules")
 (require "core/arith")
 (require "core/io")
@@ -35,7 +36,4 @@
 (require "core/output")
 (require "core/pretty-print")
 (require "core/help")
-
-; commented out due to several issues - see file for details
-;(require "core/dynamic-wind")
 

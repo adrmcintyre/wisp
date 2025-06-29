@@ -555,18 +555,20 @@ CELL internal_execute() {
                         }
                     }
                 } else if (REIFIED_CONTINUATIONP(value)) {
-                    // FIXME - we should evaluate all args *before* deciding
-                    // there are the wrong number.
-                    //
-                    // What do we need to do to support multiple arguments?
+                    // TODO what do we need to support multiple arguments?
                     if (argc != 1) {
                         args = V_EMPTY;
                         THROW(make_exception("continuation expects exactly 1 argument"));
                     } else {
                         cont = GET_REIFIED_CONTINUATION(value)->cont;
                         value = CAR(args);
-                        args = V_EMPTY;
-                        JUMP(l_eval);
+                        if (eval_args) {
+                            args = V_EMPTY;
+                            JUMP(l_eval);
+                        } else {
+                            args = V_EMPTY;
+                            DELIVER(value);
+                        }
                     }
                 } else {
                     args = V_EMPTY;
@@ -1421,14 +1423,7 @@ DECLARE_INLINE(
 DECLARE_INLINE(
     meta_callcc,
     l_inline_callcc_receiver, 1, 1,
-    "call-with-current-continuation", "proc",
-    "Calls <proc> with the current continuation."
-)
-
-DECLARE_INLINE(
-    meta_callcc_alias,
-    l_inline_callcc_receiver, 1, 1,
-    "call/cc", "proc",
+    "%call/cc", "proc",
     "Calls <proc> with the current continuation."
 )
 
@@ -1458,7 +1453,6 @@ void eval_register_symbols() {
     register_func(&meta_apply);
     register_func(&meta_eval);
     register_func(&meta_callcc);
-    register_func(&meta_callcc_alias);
 
 #if defined(TRACE_EVAL_ENABLE)
     register_func(&meta_func_trace_eval);

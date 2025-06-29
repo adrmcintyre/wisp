@@ -1,18 +1,3 @@
-;
-; FIXME 
-; There are a couple of issues with this library.
-;
-; 1. %dynamic-wind seems to cause an extra evaluation on the return value.
-;    See test-count in tests/r4rstest.wisp
-;
-; 2. call/cc now returns a closure instead of a continuation, breaking
-;    continuation->stack-frame
-;
-
-;(error "dynamic-wind: implementation is broken")
-
-
-
 ; (dynamic-wind before thunk after)
 ; 
 ; Calls `thunk' without arguments, returning the result(s) of this call. 
@@ -60,60 +45,71 @@
 ; The effect of using a captured continuation to enter or exit the dynamic 
 ; extent of a call to `before' or `after' is undefined. 
 
-(define dynamic-wind #f)
+(define core:dynamic-wind #f)
+(define core:call/cc #f)
+(define core:continuation->stack-frame #f)
 
 (let ()
-
-  (define old-call/cc call/cc)
 
   (define *here* (list #f))
 
   (define (reroot! there)
     (if (not (eq? *here* there))
-      (begin 
-        (reroot! (cdr there)) 
-        (let ((before (caar there)) 
-              (after (cdar there)))
+      (begin
+        (reroot! (cdr there))
+        (let ((before (caar there))
+               (after (cdar there)))
           (set-car! *here* (cons after before))
           (set-cdr! *here* there)
           (set-car! there #f)
           (set-cdr! there '())
           (set! *here* there)
-          (before))))) 
+          (before)))))
 
-  (define (%call/cc proc)
-    (let ((here *here*)) 
-      (old-call/cc
-        (lambda (cont) 
-          (proc 
-            (lambda results
-			  (if (equal? results '(%extract-continuation%)) cont
-				(begin
-				  (reroot! here) 
-				  (apply cont results)))))))))
+  ; Unforgeable symbol we can use to provoke our pseudo-continuations
+  ; into giving up the actual continuation they wrap.
+  (define expand-continuation-id (gensym))
 
-; FIXME - we do not support multiple values yet
-; (define (%dynamic-wind before during after) 
-;   (let ((here *here*)) 
-;     (reroot! (cons (cons before after) here)) 
-;     (call-with-values during 
-;       (lambda results
-;         (reroot! here)
-;         (apply values results)))))
+  (set! core:call/cc
+    (lambda (proc)
+      (let ((here *here*))
+        (%call/cc
+          (lambda (real-continuation)
+            (proc
+              (lambda continuation-values
+                (cond
+                  ((and (pair? continuation-values)
+                        (eq? (car continuation-values) 'expand-continuation-id))
+                    real-continuation)
+                  (else
+                    (reroot! here)
+                    (apply real-continuation continuation-values))))))))))
 
-  (define (%dynamic-wind before during after) 
-    (let ((here *here*)) 
-      (reroot! (cons (cons before after) here)) 
-      (let ((results (during)))
-        (reroot! here)
-        results)))
-
-  (set! call-with-current-continuation %call/cc)
-  (set! call/cc %call/cc)
-  (set! dynamic-wind %dynamic-wind))
-
-(define continuation->stack-frame
-  (let ((old-continuation->stack-frame continuation->stack-frame))
+  ; Our call/cc returns a closure instead of a continuation,
+  ; breaking continuation->stack-frame, so we need to patch it:
+  (set! core:continuation->stack-frame
     (lambda (cont)
-      (old-continuation->stack-frame (cont '%extract-continuation%)))))
+      (%continuation->stack-frame (cont 'expand-continuation-id))))
 
+  ; FIXME - we do not support multiple values yet
+  ; (define (%dynamic-wind before during after)
+  ;   (let ((here *here*))
+  ;     (reroot! (cons (cons before after) here))
+  ;     (call-with-values during
+  ;       (lambda results
+  ;         (reroot! here)
+  ;         (apply values results)))))
+
+  (set! core:dynamic-wind
+    (lambda (before during after)
+      (let ((here *here*))
+        (reroot! (cons (cons before after) here))
+        (let ((results (during)))
+          (reroot! here)
+          results))))
+)
+
+(define call/cc core:call/cc)
+(define call-with-current-continuation core:call/cc)
+(define continuation->stack-frame core:continuation->stack-frame)
+(define dynamic-wind core:dynamic-wind)
