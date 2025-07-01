@@ -35,13 +35,10 @@ void internal_copy_args(INT argc, BOOL rest, CELL frame, CELL args) {
 #define PROFILE_SET(v,x) 0
 #endif
 
-//
-// FIXME - this is currently very hacky!
-//
 static CELL sp = {.as_bits = NULL_BITS};
 static LABEL pc;
 static CELL cont = {.as_bits = EMPTY_BITS};
-static CELL exn_cont = {.as_bits = EMPTY_BITS};
+static CELL exn_handler = {.as_bits = EMPTY_BITS};
 static CELL env = {.as_bits = EMPTY_BITS};
 static CELL value = {.as_bits = EMPTY_BITS};
 
@@ -109,8 +106,8 @@ static INT profile_deliver = 0;
 
 #define THROW(v) \
 	do { \
-		cont = exn_cont; \
-		DELIVER(v); \
+		value = (v); \
+		JUMP(l_throw); \
 	} while(0)
 
 #define DECLARE_LABELS(macro_begin, macro_functor, macro_end) \
@@ -130,6 +127,9 @@ static INT profile_deliver = 0;
 	macro_functor(l_receive_args_for_func,        3, l_receive_args_for_func_direct) \
 	macro_functor(l_inline_apply_direct,          0, 0) \
 	macro_functor(l_inline_apply_receiver,        3, l_inline_apply_direct) \
+    macro_functor(l_inline_return_direct,         0, 0) \
+    macro_functor(l_inline_return_receiver,       3, l_inline_return_direct) \
+	macro_functor(l_throw,                        0, 0) \
 	macro_functor(l_inline_eval_direct,           0, 0) \
 	macro_functor(l_inline_eval_receiver,         3, l_inline_eval_direct) \
 	macro_functor(l_inline_callcc_direct,         0, 0) \
@@ -168,7 +168,7 @@ CELL internal_eval(CELL expr0, CELL env0) {
     gc_root_2("internal_eval", expr0, env0);
     PUSH_CONT(l_return);
     //TODO shouldn't exn_cont be saved?
-    exn_cont = cont;
+   // exn_cont = cont;
     env = env0;
     value = expr0;
     JUMP(l_eval);
@@ -181,7 +181,7 @@ CELL internal_macro_apply(CELL operator, CELL args0, CELL env0) {
     gc_root_3("internal_macro_apply", operator, args0, env0);
     PUSH_CONT(l_return);
     //TODO shouldn't exn_cont be saved?
-    exn_cont = cont;
+//  exn_cont = cont;
     env = env0;
     const INT argc0 = proper_list_length(args0);
     if (argc0 < 0) {
@@ -213,13 +213,6 @@ void eval_exit() {
 #endif
 }
 
-// TODO
-//
-// * Exceptions are implemented by maintaining a continuation for the
-//   handler, which gets invoked at the point the exception is generated
-//   - that way we don't need to litter the code with checks.
-//   Current implementation is a bit ropey though...
-//
 CELL internal_execute() {
     while (1) {
         if (signals_pending) {
@@ -858,7 +851,7 @@ CELL internal_execute() {
                 const FUNC_ENTRY func_entry = func_entries[func_index];
                 // protect fn in case func application throws and we need to retrieve the func name
                 gc_root_1("l_receive_args_for_func_direct", fn);
-                const CELL result = (*func_entry)(frame);
+                CELL result = (*func_entry)(frame);
                 gc_unroot();
                 frame = V_EMPTY;
                 if (EXCEPTIONP(result)) {
@@ -870,6 +863,23 @@ CELL internal_execute() {
                 } else {
                     DELIVER(result);
                 }
+                break;
+            }
+
+            case l_throw: {
+                // Arguments:
+                //      reg <value> - exception object
+                if (opt_trace_eval) {
+                    printf(" value=");
+                    trace_cell(value);
+                    trace_newline();
+                }
+                gc_check_headroom();
+                args = make_list_1(value);
+                argc = 1;
+                value = exn_handler;
+                frame = V_EMPTY;
+                JUMP(l_apply_no_eval);
                 break;
             }
 
@@ -1289,6 +1299,38 @@ CELL internal_execute() {
                 break;
             }
 
+            case l_inline_return_receiver: {
+                // The receiver for the built-in "return-from-interpreter" procedure.
+                //
+                // Arguments:
+                //      fv0 <value> - ignored
+                //      fv1 <argc>  - ignored
+                //      fv2 <frame> - environment frame holding argument: <obj>
+                //
+                // Allocations:
+                //      see l_inline_return_direct
+                //
+                frame = FRAME_VAR(2);
+                //
+                // fall through
+            }
+
+            case l_inline_return_direct: {
+                // Returns <value> from the interpreter loop.
+                //
+                // Arguments:
+                //      reg value - ignored
+                //      reg argc  - ignored
+                //      reg frame - environment frame holding argument: <obj>
+                //
+                // Allocations:
+                //      none
+                //
+                value = GET_ENV(frame)->cells[0];
+                //
+                // fall through
+            }
+
             case l_return: {
                 // Receives a value and returns it from the interpreter loop.
                 //
@@ -1427,6 +1469,46 @@ DECLARE_INLINE(
     "Calls <proc> with the current continuation."
 )
 
+DECLARE_INLINE(
+    meta_return_from_interpreter,
+    l_inline_return_receiver, 1, 1,
+    "%return-from-interpreter", "obj",
+    "Exits the interpreter loop, returning <obj>."
+)
+
+DECLARE_FUNC_0(
+    func_current_exception_handler,
+    "current-exception-handler",
+    "Returns the current exception handler."
+)
+
+CELL func_current_exception_handler(CELL frame) {
+    return exn_handler;
+}
+
+DECLARE_FUNC(
+    func_set_exception_handler, 1, 1,
+    "set-exception-handler!", "proc",
+    "Sets the current exception handler to <proc>."
+)
+
+CELL func_set_exception_handler(CELL frame) {
+    //TODO assert argument type (ideally check arity?)
+    //ASSERT_PROCP(0);
+    exn_handler = FV0;
+    return V_VOID;
+}
+
+DECLARE_FUNC_0(
+    func_breakpoint,
+    "%breakpoint",
+    "Trigger breakpoint in underlying implementation."
+)
+
+CELL func_breakpoint(CELL frame) {
+    return V_VOID;
+}
+
 DECLARE_FUNC(
     func_closurep, 1, 1,
     "%closure?", "obj",
@@ -1454,6 +1536,11 @@ void eval_register_symbols() {
     register_func(&meta_eval);
     register_func(&meta_callcc);
 
+    // install default handler
+    const CELL return_symbol =
+        register_func(&meta_return_from_interpreter);
+    exn_handler = GET_SYMBOL(return_symbol)->binding;
+
 #if defined(TRACE_EVAL_ENABLE)
     register_func(&meta_func_trace_eval);
 #endif
@@ -1464,12 +1551,16 @@ void eval_register_symbols() {
     register_func(&meta_func_scheme_report_environment);
     register_func(&meta_func_interaction_environment);
 
+    register_func(&meta_func_current_exception_handler);
+    register_func(&meta_func_set_exception_handler);
+    register_func(&meta_func_breakpoint);
+
     register_func(&meta_func_closurep);
     register_func(&meta_func_closure_lambda);
 
     gc_root_static(sp);
     gc_root_static(cont);
-    gc_root_static(exn_cont);
+    gc_root_static(exn_handler);
     gc_root_static(env);
     gc_root_static(value);
     gc_root_static(frame);

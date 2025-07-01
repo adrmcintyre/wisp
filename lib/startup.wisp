@@ -29,6 +29,7 @@
 (require "core/compile")
 (require "core/eval")
 (require "core/dynamic-wind")
+(require "core/exception")
 (require "core/syntax-rules")
 (require "core/arith")
 (require "core/io")
