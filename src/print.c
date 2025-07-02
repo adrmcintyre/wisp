@@ -191,6 +191,12 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict) {
             break;
         }
 
+        case T_VALUES: {
+            const VALUES *p = GET_VALUES(cell);
+            fprintf(fp, "#<values:%"PRId64">", p->len);
+            break;
+        }
+
         case T_FUNC: {
             const FUNC *p = GET_FUNC(cell);
             const STRING *pname = GET_STRING(p->name_str);

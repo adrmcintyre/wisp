@@ -1,11 +1,6 @@
-; FIXME multiple values not supported currently so fake 'em
-(define (values . args)
-  (cons '<values> args))
-
 ; from srfi-8
-; FIXME - very hackish - does not check producer produces 'values'
 (define-macro (receive vars producer . body)
-  `(apply (lambda ,vars ,@body) (cdr ,producer)))
+    `(call-with-values (lambda() ,producer) (lambda ,vars ,@body)))
 
 ;;; INTERNAL HELPERS
 (define-macro (srfi-1:rcons a b)

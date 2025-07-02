@@ -197,6 +197,7 @@ size_t get_size(CELL v) {
         case T_KEYWORD: return sizeof(KEYWORD);
         case T_VECTOR: return sizeof(VECTOR) + GET_VECTOR(v)->len * sizeof(CELL);
         case T_RECORD: return sizeof(RECORD) + GET_RECORD(v)->len * sizeof(CELL);
+        case T_VALUES: return sizeof(VALUES);
         case T_PORT: return sizeof(PORT);
         case T_DB_CONNECTION: return sizeof(DB_CONNECTION);
         case T_DB_RESULT: return sizeof(DB_RESULT);
@@ -235,6 +236,7 @@ const char *get_typename(TYPEID type) {
         case T_KEYWORD: return "KEYWORD";
         case T_VECTOR: return "VECTOR";
         case T_RECORD: return "RECORD";
+        case T_VALUES: return "VALUES";
         case T_PORT: return "PORT";
         case T_DB_CONNECTION: return "DB_CONNECTION";
         case T_DB_RESULT: return "DB_RESULT";
@@ -293,7 +295,7 @@ void gc_check_headroom_bytes(size_t bytes) {
 }
 
 void gc_check_headroom_list(INT n) {
-    gc_check_headroom_bytes(n * ALIGN_SIZE_UP(sizeof(CONS)));
+    gc_check_headroom_bytes(1024 + n * ALIGN_SIZE_UP(sizeof(CONS)));
 }
 
 void gc_check_headroom() {
@@ -478,6 +480,11 @@ void gc_half_space(CELL *root) {
                     for (INT i = 0; i < n; ++i) {
                         gc_relocate(&p->data[i]);
                     }
+                    break;
+                }
+                case T_VALUES: {
+                    VALUES *p = raw_ptr;
+                    gc_relocate(&p->value_list);
                     break;
                 }
                 case T_PORT: {
@@ -690,6 +697,11 @@ void gc_check_heap() {
                     for (INT i = 0; i < n; ++i) {
                         gc_check_cell(&record->data[i], "RECORD.data[]");
                     }
+                    break;
+                }
+                case T_VALUES: {
+                    VALUES *values = raw_ptr;
+                    gc_check_cell(&values->value_list, "VALUES.value_list");
                     break;
                 }
                 case T_PORT: {

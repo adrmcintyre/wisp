@@ -64,12 +64,6 @@ static INT profile_deliver = 0;
 
 #define FRAME_VAR(i)                     (GET_STACK_FRAME(sp)->cells[(i)])
 #define SET_FRAME_VAR(i, v)              (FRAME_VAR(i) = (CELL)(v))
-#define GET_FRAME_VAR(i, v)              (*(CELL*)&(v) = FRAME_VAR(i))
-
-#define GET_FRAME_VARS1(v1)              do{ GET_FRAME_VAR(0,v1); }while(0)
-#define GET_FRAME_VARS2(v1, v2)          do{ GET_FRAME_VAR(0,v1); GET_FRAME_VAR(1,v2); }while(0)
-#define GET_FRAME_VARS3(v1, v2, v3)      do{ GET_FRAME_VAR(0,v1); GET_FRAME_VAR(1,v2); GET_FRAME_VAR(2,v3); }while(0)
-#define GET_FRAME_VARS4(v1, v2, v3, v4)  do{ GET_FRAME_VAR(0,v1); GET_FRAME_VAR(1,v2); GET_FRAME_VAR(2,v3); GET_FRAME_VAR(3,v4); }while(0)
 
 // STACK LAYOUT
 //                                               +----------------------------+
@@ -127,13 +121,14 @@ static INT profile_deliver = 0;
 	macro_functor(l_receive_args_for_func,        3, l_receive_args_for_func_direct) \
 	macro_functor(l_inline_apply_direct,          0, 0) \
 	macro_functor(l_inline_apply_receiver,        3, l_inline_apply_direct) \
-    macro_functor(l_inline_return_direct,         0, 0) \
-    macro_functor(l_inline_return_receiver,       3, l_inline_return_direct) \
 	macro_functor(l_throw,                        0, 0) \
 	macro_functor(l_inline_eval_direct,           0, 0) \
 	macro_functor(l_inline_eval_receiver,         3, l_inline_eval_direct) \
-	macro_functor(l_inline_callcc_direct,         0, 0) \
-	macro_functor(l_inline_callcc_receiver,       3, l_inline_callcc_direct) \
+	macro_functor(l_inline_call_cc_direct,        0, 0) \
+	macro_functor(l_inline_call_cc_receiver,      3, l_inline_call_cc_direct) \
+	macro_functor(l_inline_call_values_direct,    0, 0) \
+	macro_functor(l_inline_call_values_receiver,  3, l_inline_call_values_direct) \
+    macro_functor(l_receive_values,               1, 0) \
 	macro_functor(l_receive_define_value,         1, 0) \
 	macro_functor(l_receive_set_slot_value,       1, 0) \
 	macro_functor(l_receive_set_name_value,       1, 0) \
@@ -145,6 +140,8 @@ static INT profile_deliver = 0;
 	macro_functor(l_and2,                         1, 0) \
 	macro_functor(l_or,                           0, 0) \
 	macro_functor(l_or2,                          1, 0) \
+    macro_functor(l_inline_return_direct,         0, 0) \
+    macro_functor(l_inline_return_receiver,       3, l_inline_return_direct) \
 	macro_functor(l_return,                       0, 0) \
 	macro_end
 
@@ -167,8 +164,6 @@ CELL internal_execute();
 CELL internal_eval(CELL expr0, CELL env0) {
     gc_root_2("internal_eval", expr0, env0);
     PUSH_CONT(l_return);
-    //TODO shouldn't exn_cont be saved?
-   // exn_cont = cont;
     env = env0;
     value = expr0;
     JUMP(l_eval);
@@ -180,8 +175,6 @@ CELL internal_eval(CELL expr0, CELL env0) {
 CELL internal_macro_apply(CELL operator, CELL args0, CELL env0) {
     gc_root_3("internal_macro_apply", operator, args0, env0);
     PUSH_CONT(l_return);
-    //TODO shouldn't exn_cont be saved?
-//  exn_cont = cont;
     env = env0;
     const INT argc0 = proper_list_length(args0);
     if (argc0 < 0) {
@@ -548,20 +541,17 @@ CELL internal_execute() {
                         }
                     }
                 } else if (REIFIED_CONTINUATIONP(value)) {
-                    // TODO what do we need to support multiple arguments?
+                    cont = GET_REIFIED_CONTINUATION(value)->cont;
                     if (argc != 1) {
-                        args = V_EMPTY;
-                        THROW(make_exception("continuation expects exactly 1 argument"));
+                        value = make_values(argc, args);
                     } else {
-                        cont = GET_REIFIED_CONTINUATION(value)->cont;
                         value = CAR(args);
-                        if (eval_args) {
-                            args = V_EMPTY;
-                            JUMP(l_eval);
-                        } else {
-                            args = V_EMPTY;
-                            DELIVER(value);
-                        }
+                    }
+                    args = V_EMPTY;
+                    if (eval_args) {
+                        JUMP(l_eval);
+                    } else {
+                        DELIVER(value);
                     }
                 } else {
                     args = V_EMPTY;
@@ -752,8 +742,8 @@ CELL internal_execute() {
                 //      1 x stack_frame, length 2
                 //
                 gc_check_headroom();
-                CELL pre_tail;
-                GET_FRAME_VARS2(args, pre_tail);
+                args = FRAME_VAR(0);
+                CELL pre_tail = FRAME_VAR(1);
 
                 if (opt_trace_eval) {
                     printf(" args=");
@@ -793,7 +783,8 @@ CELL internal_execute() {
                 // Allocations:
                 //      none
                 //
-                GET_FRAME_VARS2(value, env);
+                value = FRAME_VAR(0);
+                env = FRAME_VAR(1);
 
                 if (opt_trace_eval) {
                     printf(" body=");
@@ -867,8 +858,14 @@ CELL internal_execute() {
             }
 
             case l_throw: {
+                // Invokes the current exception handler.
+                // 
                 // Arguments:
                 //      reg <value> - exception object
+                //
+                // Allocations:
+                //      1 x cons
+                //
                 if (opt_trace_eval) {
                     printf(" value=");
                     trace_cell(value);
@@ -929,7 +926,7 @@ CELL internal_execute() {
                 break;
             }
 
-            case l_inline_callcc_receiver: {
+            case l_inline_call_cc_receiver: {
                 // The receiver for the built-in "call/cc" procedure.
                 //
                 // Arguments:
@@ -938,14 +935,14 @@ CELL internal_execute() {
                 //      fv2 <frame> - environment frame holding 1 argument: <proc>
                 //
                 // Allocations:
-                //      see l_inline_callcc_direct
+                //      see l_inline_call_cc_direct
                 //
                 frame = FRAME_VAR(2);
                 //
                 // fall through
             }
 
-            case l_inline_callcc_direct: {
+            case l_inline_call_cc_direct: {
                 // Applies <proc> to the reification of the current continuation
                 // as its sole argument, and delivers the result.
                 //
@@ -972,6 +969,66 @@ CELL internal_execute() {
                 break;
             }
 
+            case l_inline_call_values_receiver: {
+                // The receiver for the built-in "call-with-values" procedure.
+                //
+                // Arguments:
+                //      fv0 <value> - ignored
+                //      fv1 <argc>  - ignored
+                //      fv2 <frame> - environment frame holding 2 arguments: <producer> <consumer>
+                //
+                // Allocations:
+                //      see l_inline_call_values_direct
+                //
+                frame = FRAME_VAR(2);
+                //
+                // fall through
+            }
+
+            case l_inline_call_values_direct: {
+                // Evaluates <producer> and delivers its result(s) as arguments to <consumer>.
+                //
+                // Arguments:
+                //      reg value - ignored
+                //      reg argc  - ignored
+                //      reg frame - environment frame holding 2 arguments: <producer> <consumer>
+                //
+                // Allocations:
+                //      TODO
+                //
+                if (opt_trace_eval) {
+                    //TODO
+                }
+                gc_check_headroom();
+                value = GET_ENV(frame)->cells[1];
+                PUSH_CONT1(l_receive_values, value);
+                value = GET_ENV(frame)->cells[0];
+                frame = V_EMPTY;
+                args = V_NULL;
+                argc = 0;
+                JUMP(l_apply_no_eval);
+                break;
+            }
+
+            case l_receive_values: {
+                //
+                // Arguments:
+                //      reg value
+                //      fv0 consumer
+                //
+                if (VALUESP(value)) {
+                    VALUES *p = GET_VALUES(value);
+                    args = p->value_list;
+                    argc = p->len;
+                } else {
+                    args = make_list_1(value);
+                    argc = 1;
+                }
+                value = FRAME_VAR(0);
+                JUMP(l_apply_no_eval);
+                break;
+            }
+
             case l_receive_define_value: {
                 // Receives an evaluated expression and sets the given symbol's binding
                 // in the global environment to its value. Delivers (void).
@@ -983,8 +1040,7 @@ CELL internal_execute() {
                 // Allocations:
                 //      none
                 //
-                CELL name;
-                GET_FRAME_VARS1(name);
+                CELL name = FRAME_VAR(0);
 
                 if (opt_trace_eval) {
                     printf(" name=");
@@ -1008,8 +1064,7 @@ CELL internal_execute() {
                 // Allocations:
                 //      none
                 //
-                CELL variable;
-                GET_FRAME_VARS1(variable);
+                CELL variable = FRAME_VAR(0);
 
                 if (opt_trace_eval) {
                     printf(" variable=");
@@ -1033,8 +1088,7 @@ CELL internal_execute() {
                 // Allocations:
                 //      none
                 //
-                CELL variable;
-                GET_FRAME_VARS1(variable);
+                CELL variable = FRAME_VAR(0);
 
                 if (opt_trace_eval) {
                     printf(" variable=");
@@ -1064,8 +1118,7 @@ CELL internal_execute() {
                 // Allocations:
                 //      none
                 //
-                CELL if_true;
-                GET_FRAME_VARS1(if_true);
+                CELL if_true = FRAME_VAR(0);
 
                 if (opt_trace_eval) {
                     printf(" if_true=");
@@ -1095,9 +1148,8 @@ CELL internal_execute() {
                 // Allocations:
                 //      none
                 //
-                CELL if_true;
-                CELL if_false;
-                GET_FRAME_VARS2(if_true, if_false);
+                CELL if_true = FRAME_VAR(0);
+                CELL if_false = FRAME_VAR(1);
 
                 if (opt_trace_eval) {
                     printf(" if_true=");
@@ -1155,7 +1207,7 @@ CELL internal_execute() {
                 //
                 value = V_EMPTY;
 
-                GET_FRAME_VARS1(args);
+                args = FRAME_VAR(0);
 
                 if (opt_trace_eval) {
                     printf(" args=");
@@ -1215,7 +1267,7 @@ CELL internal_execute() {
                 // Allocations:
                 //      1 x stack_frame, length 1
                 //
-                GET_FRAME_VARS1(args);
+                args = FRAME_VAR(0);
 
                 if (opt_trace_eval) {
                     printf(" args=");
@@ -1277,7 +1329,7 @@ CELL internal_execute() {
                 // Allocations:
                 //      1 x stack_frame, length 1
                 //
-                GET_FRAME_VARS1(args);
+                args = FRAME_VAR(0);
 
                 if (opt_trace_eval) {
                     printf(" args=");
@@ -1463,8 +1515,8 @@ DECLARE_INLINE(
 )
 
 DECLARE_INLINE(
-    meta_callcc,
-    l_inline_callcc_receiver, 1, 1,
+    meta_call_cc,
+    l_inline_call_cc_receiver, 1, 1,
     "%call/cc", "proc",
     "Calls <proc> with the current continuation."
 )
@@ -1474,6 +1526,16 @@ DECLARE_INLINE(
     l_inline_return_receiver, 1, 1,
     "%return-from-interpreter", "obj",
     "Exits the interpreter loop, returning <obj>."
+)
+
+DECLARE_INLINE(
+    meta_call_with_values,
+    l_inline_call_values_receiver, 2, 2,
+    "call-with-values", "producer:proc consumer:proc",
+    "Calls <producer> with no arguments, then invokes <consumer> with"
+    " the returned value(s) as arguments, and returns the result."
+    "\n\n"
+    "(call-with-values (lambda() (values 4 5)) (lambda(a b) b)) => 5"
 )
 
 DECLARE_FUNC_0(
@@ -1499,14 +1561,27 @@ CELL func_set_exception_handler(CELL frame) {
     return V_VOID;
 }
 
-DECLARE_FUNC_0(
-    func_breakpoint,
-    "%breakpoint",
-    "Trigger breakpoint in underlying implementation."
+DECLARE_FUNC(
+    func_values, 0, -1,
+    "values", "<obj> ...",
+    "Returns multiple values."
 )
 
-CELL func_breakpoint(CELL frame) {
-    return V_VOID;
+CELL func_values(CELL frame) {
+    INT n = FC;
+    if (n == 1) {
+        return FV0;
+    }
+
+    gc_root_1("func_values", frame);
+    gc_check_headroom_list(n);
+    gc_unroot();
+
+    CELL value_list = V_NULL;
+    for (INT i = n-1; i >= 0; i--) {
+        value_list = make_cons(FV[i], value_list);
+    }
+    return make_values(n, value_list);
 }
 
 DECLARE_FUNC(
@@ -1534,12 +1609,14 @@ CELL func_closure_lambda(CELL frame) {
 void eval_register_symbols() {
     register_func(&meta_apply);
     register_func(&meta_eval);
-    register_func(&meta_callcc);
+    register_func(&meta_call_cc);
 
     // install default handler
     const CELL return_symbol =
         register_func(&meta_return_from_interpreter);
     exn_handler = GET_SYMBOL(return_symbol)->binding;
+
+    register_func(&meta_call_with_values);
 
 #if defined(TRACE_EVAL_ENABLE)
     register_func(&meta_func_trace_eval);
@@ -1553,7 +1630,7 @@ void eval_register_symbols() {
 
     register_func(&meta_func_current_exception_handler);
     register_func(&meta_func_set_exception_handler);
-    register_func(&meta_func_breakpoint);
+    register_func(&meta_func_values);
 
     register_func(&meta_func_closurep);
     register_func(&meta_func_closure_lambda);

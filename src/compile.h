@@ -1,8 +1,8 @@
 #ifndef COMPILE_H
 #define COMPILE_H
 
+// The values in lib/core/compile.wisp must be kept in sync
 static const INT SPECIAL_ARGC_QUOTE = -1;
-
 static const INT SPECIAL_ARGC_DEFINE = -2;
 static const INT SPECIAL_ARGC_SET_SLOT = -3;
 static const INT SPECIAL_ARGC_SET_SYMBOL = -4;

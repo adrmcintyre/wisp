@@ -142,13 +142,22 @@ static void print_exception(CELL exn) {
     }
 }
 
-static void print_result(CELL value) {
-    if (EXCEPTIONP(value)) {
-        print_exception(value);
+static void print_result(CELL result) {
+    if (EXCEPTIONP(result)) {
+        print_exception(result);
         fputc('\n', stdout);
-    } else if (!VOIDP(value)) {
-        internal_print(stdout, value);
-        fputc('\n', stdout);
+    } else if (!VOIDP(result)) {
+        if (VALUESP(result)) {
+            VALUES *p = GET_VALUES(result);
+            CELL value_list = p->value_list;
+            for ( ; CONSP(value_list); value_list = CDR(value_list)) {
+                internal_print(stdout, CAR(value_list));
+                fputc('\n', stdout);
+            }
+        } else {
+            internal_print(stdout, result);
+            fputc('\n', stdout);
+        }
     }
 }
 
@@ -327,9 +336,9 @@ int main(int argc, char *argv[]) {
     register_symbols();
 
     if (opt_load_libs) {
-        const CELL value = internal_load("lib/startup.wisp");
-        if (EXCEPTIONP(value)) {
-            print_result(value);
+        const CELL result = internal_load("lib/startup.wisp");
+        if (EXCEPTIONP(result)) {
+            print_result(result);
             exit(1);
         }
     }
@@ -347,8 +356,8 @@ int main(int argc, char *argv[]) {
             eval_exit();
             exit(0);
         } else {
-            const CELL value = internal_compile_eval(expr);
-            print_result(value);
+            const CELL result = internal_compile_eval(expr);
+            print_result(result);
         }
     }
 }

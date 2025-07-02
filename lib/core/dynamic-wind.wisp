@@ -91,19 +91,21 @@
     (lambda (cont)
       (%continuation->stack-frame (cont 'expand-continuation-id))))
 
-  ; FIXME - we do not support multiple values yet
-  ; (define (%dynamic-wind before during after)
-  ;   (let ((here *here*))
-  ;     (reroot! (cons (cons before after) here))
-  ;     (call-with-values during
-  ;       (lambda results
-  ;         (reroot! here)
-  ;         (apply values results)))))
-
   (set! core:dynamic-wind
     (lambda (before during after)
       (let ((here *here*))
         (reroot! (cons (cons before after) here))
+        ;
+        ; Because we implement multiple values as a simple wrapper object,
+        ; we can simplify this code:
+        ;
+        ; (call-with-values during
+        ;   (lambda results
+        ;     (reroot! here)
+        ;     (apply values results))))))
+        ;
+        ; to this:
+        ;
         (let ((results (during)))
           (reroot! here)
           results))))

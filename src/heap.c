@@ -205,6 +205,14 @@ CELL make_vector_inited(INT len, CELL init) {
     return vector;
 }
 
+CELL make_values(INT len, CELL value_list) {
+    CELL values = gc_alloc(VALUES);
+    VALUES *p = GET_VALUES(values);
+    p->len = len;
+    p->value_list = value_list;
+    return values;
+}
+
 CELL make_compiled_lambda(
     bool is_macro,
     INT argc,

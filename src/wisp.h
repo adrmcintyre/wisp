@@ -122,6 +122,12 @@ typedef struct struct_record {
     CELL data[0];
 } RECORD;
 
+typedef struct struct_values {
+    CELL tag;
+    INT len;
+    CELL value_list;
+} VALUES;
+
 //FIXME - this is getting ridiculous - we need to rationalise
 // our datatypes - e.g. RECORD should just be VECTOR under the hood,
 // as probably should EXCEPTION.
@@ -175,6 +181,7 @@ union union_object {
     KEYWORD v_keyword;
     VECTOR v_vector;
     RECORD v_record;
+    VALUES v_values;
 
     // resources
     GENERIC_RESOURCE v_generic_resource;
@@ -315,9 +322,10 @@ static const TYPEID T_STRING = 0x25;
 static const TYPEID T_KEYWORD = 0x26;
 static const TYPEID T_VECTOR = 0x27;
 static const TYPEID T_RECORD = 0x28;
-static const TYPEID T_PORT = 0x29;
-static const TYPEID T_DB_CONNECTION = 0x2a;
-static const TYPEID T_DB_RESULT = 0x2b;
+static const TYPEID T_VALUES = 0x29;
+static const TYPEID T_PORT = 0x2a;
+static const TYPEID T_DB_CONNECTION = 0x2b;
+static const TYPEID T_DB_RESULT = 0x2c;
 
 static const uint64_t NULL_BITS = 0x0000000000000000;
 static const uint64_t EMPTY_BITS = (uint64_t) T_EMPTY << 45;
@@ -411,6 +419,7 @@ static inline bool STRINGP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_STRING);
 static inline bool KEYWORDP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_KEYWORD); }
 static inline bool VECTORP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_VECTOR); }
 static inline bool RECORDP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_RECORD); }
+static inline bool VALUESP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_VALUES); }
 static inline bool PORTP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_PORT); }
 static inline bool DB_CONNECTIONP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_DB_CONNECTION); }
 static inline bool DB_RESULTP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_DB_RESULT); }
@@ -510,6 +519,7 @@ static inline STRING *GET_STRING(CELL cell) { return &cell.as_object->v_string; 
 static inline KEYWORD *GET_KEYWORD(CELL cell) { return &cell.as_object->v_keyword; }
 static inline VECTOR *GET_VECTOR(CELL cell) { return &cell.as_object->v_vector; }
 static inline RECORD *GET_RECORD(CELL cell) { return &cell.as_object->v_record; }
+static inline VALUES *GET_VALUES(CELL cell) { return &cell.as_object->v_values; }
 static inline GENERIC_RESOURCE *GET_GENERIC_RESOURCE(CELL cell) { return &cell.as_object->v_generic_resource; }
 static inline PORT *GET_PORT(CELL cell) { return &cell.as_object->v_port; }
 static inline DB_CONNECTION *GET_DB_CONNECTION(CELL cell) { return &cell.as_object->v_db_connection; }
@@ -723,6 +733,8 @@ extern CELL make_vector_inited(INT len, CELL init);
 extern CELL make_record(INT len);
 
 extern CELL make_record_uninited(INT len);
+
+extern CELL make_values(INT len, CELL values_list);
 
 // make_generic_resource?
 extern CELL make_port(char mode, FILE *fp, CELL path);
