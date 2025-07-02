@@ -16,17 +16,6 @@ bool opt_trace_eval = false;
 #define opt_trace_eval false
 #endif
 
-void internal_copy_args(INT argc, BOOL rest, CELL frame, CELL args) {
-    CELL *argv = GET_ENV(frame)->cells;
-    for (INT argi = 0; argi < argc; ++argi) {
-        *argv++ = CAR(args);
-        args = CDR(args);
-    }
-    if (rest) {
-        *argv = args;
-    }
-}
-
 #if defined(PROFILE_ENABLE)
 	#define PROFILE_INC(v)   ((v)++)
 	#define PROFILE_SET(v,x) ((v)=(x))
@@ -60,10 +49,8 @@ static INT profile_deliver = 0;
 #define GET_BINDING(cell)      (GET_SYMBOL(cell)->binding)
 #define DEFINED_BINDING(cell)  (!UNDEFINEDP(GET_BINDING(cell)))
 
-#define JUMP(l)                          (pc=(l))
-
-#define FRAME_VAR(i)                     (GET_STACK_FRAME(sp)->cells[(i)])
-#define SET_FRAME_VAR(i, v)              (FRAME_VAR(i) = (CELL)(v))
+#define FRAME_VAR(i)           (GET_STACK_FRAME(sp)->cells[(i)])
+#define SET_FRAME_VAR(i, v)    (FRAME_VAR(i) = (CELL)(v))
 
 // STACK LAYOUT
 //                                               +----------------------------+
@@ -81,11 +68,14 @@ static INT profile_deliver = 0;
 		cont = sp; \
 	} while(0)
 
-#define PUSH_CONT(l)                  do{PUSH_CONT_INTRO(l,0);}while(0)
+#define PUSH_CONT(l)                  do{PUSH_CONT_INTRO(l,0);} while(0)
 #define PUSH_CONT1(l, v1)             do{PUSH_CONT_INTRO(l,1); SET_FRAME_VAR(0,(v1));} while(0)
 #define PUSH_CONT2(l, v1, v2)         do{PUSH_CONT_INTRO(l,2); SET_FRAME_VAR(0,(v1)); SET_FRAME_VAR(1,(v2));} while(0)
 #define PUSH_CONT3(l, v1, v2, v3)     do{PUSH_CONT_INTRO(l,3); SET_FRAME_VAR(0,(v1)); SET_FRAME_VAR(1,(v2)); SET_FRAME_VAR(2,(v3));} while(0)
 #define PUSH_CONT4(l, v1, v2, v3, v4) do{PUSH_CONT_INTRO(l,4); SET_FRAME_VAR(0,(v1)); SET_FRAME_VAR(1,(v2)); SET_FRAME_VAR(2,(v3)); SET_FRAME_VAR(3,(v4));} while(0)
+
+#define JUMP(l) \
+    (pc = (l))
 
 #define DELIVER(v) \
 	do {\
@@ -101,7 +91,7 @@ static INT profile_deliver = 0;
 #define THROW(v) \
 	do { \
 		value = (v); \
-		JUMP(l_throw); \
+		pc = l_throw; \
 	} while(0)
 
 #define DECLARE_LABELS(macro_begin, macro_functor, macro_end) \
@@ -204,6 +194,17 @@ void eval_exit() {
 		printf("%-32s %8d\n", label_info[i].name, profile_label[i]);
 	}
 #endif
+}
+
+void internal_copy_args(INT argc, BOOL rest, CELL frame, CELL args) {
+    CELL *argv = GET_ENV(frame)->cells;
+    for (INT argi = 0; argi < argc; ++argi) {
+        *argv++ = CAR(args);
+        args = CDR(args);
+    }
+    if (rest) {
+        *argv = args;
+    }
 }
 
 CELL internal_execute() {
