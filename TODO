@@ -1,3 +1,5 @@
+Support reading of rationals (but convert to double / int).
+
 Exceptions need some sort of type field.
 
 Macros should be shadowed by let and lambda bindings.
