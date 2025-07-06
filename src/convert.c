@@ -392,7 +392,7 @@ int internal_number2string(CELL number, INT radix, char *buf, size_t cap) {
             return 0;
         }
         if (isfinite(num)) {
-            len = snprintf(buf, cap, "%.17g", num);
+            len = snprintf(buf, cap, "%.15g", num);
             if (!(strchr(buf, '.') || strchr(buf, 'e'))) {
                 if (len < cap - 1) {
                     buf[len] = '.';
