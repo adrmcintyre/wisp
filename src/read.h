@@ -19,7 +19,9 @@ extern CELL internal_read_with_prompt(char *prompt);
 
 extern CELL internal_read(RCHAN *rchan, CELL token);
 
-extern CELL internal_read_number(RCHAN *rchan, int radix, int ch, TYPEID want_type);
+extern CELL internal_read_ident(RCHAN *rchan, const char *prefix, size_t prefix_len);
+
+extern CELL internal_read_number(RCHAN *rchan, const char *prefix, size_t prefix_len);
 
 extern CELL internal_read_vector(RCHAN *rchan);
 

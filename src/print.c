@@ -4,6 +4,8 @@
 #include <inttypes.h>
 #include <math.h>
 
+#include "convert.h"
+
 void internal_print_env(FILE *fp, CELL env) {
     fputc('[', fp);
     while (ENVP(env)) {
@@ -96,19 +98,15 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict) {
             break;
         }
 
-        case T_INT: {
-            fprintf(fp, "%"PRId64, GET_INT(cell));
-            break;
-        }
-
+        case T_INT:
         case T_FLOAT: {
-            FLOAT f = GET_FLOAT(cell);
-            if (isfinite(f)) {
-                // TODO - use one of the algorithms like dragon4, ryu, schubfach etc to print at optimal precision.
-                fprintf(fp, "%.17g", f);
-            }
-            else {
-                fprintf(fp, isnan(f) ? "+nan.0" : signbit(f) ? "-inf.0" : "+inf.0");
+            char buf[72];
+            const size_t cap = sizeof(buf);
+            int len = internal_number2string(cell, 10, buf, cap);
+            if (len < cap) {
+                fwrite(buf, 1, len, fp);
+            } else {
+                fputs("#<number>", fp);
             }
             break;
         }

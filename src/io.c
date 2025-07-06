@@ -211,6 +211,32 @@ GEN_INPUT_FUNC(
     const int ch = internal_read_char(&rchan); return (ch == EOF) ? V_EOF : make_char(ch)
 )
 
+/*
+GEN_INPUT_FUNC(
+    func_read_token,
+    "%read-token",
+    "Returns the next token read from <input-port>, or the value returned"
+    " by (eof-object) if end of stream is reached."
+    " If <input-port> is not supplied, (current-input-port) is used instead.",
+    return internal_read_ident(&rchan, )
+)
+
+GEN_INPUT_FUNC(
+    func_read_identifier_string,
+    "%read-identifier-string",
+    "Reads a sequence of identifier characters from <input-port>, and returns"
+    " them as a string, where an identifier character is valid in a symbol or"
+    " string."
+    ""
+    " Returns (eof-object) if the first character read is at"
+    " end of stream, or #f if it not valid in an identifier."
+    " An identifier character is any character which is valid in a symbol or a"
+    " number."
+    " If <input-port> is not supplied, (current-input-port) is used instead.",
+    return internal_read_ident(&rchan)
+)
+*/
+
 GEN_INPUT_FUNC(
     func_peek_char,
     "peek-char",
@@ -227,6 +253,16 @@ GEN_INPUT_FUNC(
     "Not implemented.",
     return make_exception("not implemented")
 )
+
+DECLARE_FUNC_0(
+    func_eof_object,
+    "eof-object",
+    "Returns the object representing end-of-file."
+)
+
+CELL func_eof_object(CELL frame) {
+    return V_EOF;
+}
 
 DECLARE_FUNC(
     func_eof_objectp, 1, 1,
@@ -259,6 +295,8 @@ DECLARE_FUNC(
     func_write_atom, 2, 2,
     "%write-atom", "obj output-port",
     "Writes the textual representation of <obj> to <output-port>."
+    "Objects with internal structure such as pairs and vectors are"
+    "written as opaque placeholders."
 )
 
 CELL func_write_atom(CELL frame) {
@@ -266,6 +304,7 @@ CELL func_write_atom(CELL frame) {
     const CELL obj = FV0;
     const CELL port = FV1;
     FILE *fp = GET_PORT(port)->fp;
+    // TODO make these an error instead?
     if (CONSP(obj)) {
         fputs("#<pair>", fp);
     } else if (VECTORP(obj)) {
@@ -403,6 +442,7 @@ void io_register_symbols() {
     register_func(&meta_func_read);
     register_func(&meta_func_read_char);
     register_func(&meta_func_peek_char);
+    register_func(&meta_func_eof_object);
     register_func(&meta_func_eof_objectp);
     register_func(&meta_func_char_readyp);
 

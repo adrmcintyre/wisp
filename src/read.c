@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "convert.h"
+#include "heap.h"
+
 #ifdef HAVE_READLINE
 #  if defined(HAVE_READLINE_READLINE_H)
 #    include <readline/readline.h>
@@ -139,149 +142,80 @@ int internal_peek_char(RCHAN *rchan) {
     return ch;
 }
 
-CELL internal_read_symbol(RCHAN *rchan, int ch) {
-    // FIXME - should not have arbitrary limit to identifier lengths
-    const INT max_len = 255;
-    char token[max_len + 1];
-    INT i = 0;
-    token[i++] = (char) ch;
-    while ((ch = rchan->readch(rchan)) != EOF && i < max_len) {
-        if (isalpha(ch) || isdigit(ch) || strchr("!$%&*+-./:<=>?@^_~", ch)) {
-            token[i++] = (char) ch;
+#define SYMBOL_PREFIX_SPECIALS "!$%&*/:<=>?@^_~\\"
+#define IDENT_SPECIALS (SYMBOL_PREFIX_SPECIALS "#.+-")
+
+static bool is_ident_char(char ch) {
+    return isalpha(ch) || isdigit(ch) || strchr(IDENT_SPECIALS, ch);
+}
+
+static bool is_symbol_prefix(char ch) {
+    return isalpha(ch) || strchr(SYMBOL_PREFIX_SPECIALS, ch);
+}
+
+CELL internal_read_ident(RCHAN *rchan, const char *prefix, size_t prefix_len) {
+    CELL ident = V_EMPTY;
+
+    char buf[4096];
+    const size_t buf_cap = sizeof(buf);
+    INT buf_len = prefix_len;
+    memcpy(buf, prefix, prefix_len);
+
+    int ch;
+    while ((ch = rchan->readch(rchan)) != EOF) {
+        if (is_ident_char(ch)) {
+            buf[buf_len++] = (char) ch;
+            if (buf_len == buf_cap) {
+                if (EMPTYP(ident)) {
+                    ident = make_immutable_string_counted(buf, buf_len);
+                } else {
+                    ident = unsafe_extend_string_counted(ident, buf, buf_len);
+                }
+                buf_len = 0;
+            }
         } else {
             rchan->unreadch(rchan, ch);
             break;
         }
     }
-    token[i] = '\0';
-    if (i > 1 && token[i - 1] == ':') {
-        return make_keyword_counted(token, i - 1);
+    if (EMPTYP(ident)) {
+        if (buf_len == 0) {
+            return (ch == EOF) ? V_EOF : V_FALSE;
+        }
+        return make_immutable_string_counted(buf, buf_len);
     }
-    return make_symbol_counted(token, i);
+    if (buf_len == 0) {
+        return ident;
+    }
+    return unsafe_extend_string_counted(ident, buf, buf_len);
 }
 
 // WARNING! rchan might point to (part of) an object, so
 // may become invalid after an allocation
 
-CELL internal_read_number(RCHAN *rchan, int radix, int ch, TYPEID want_type) {
-    const char *exp_markers = "esfdlESFDL";
-    if (ch == EOF) {
-        ch = rchan->readch(rchan);
+CELL internal_read_number_or_symbol(RCHAN *rchan, const char *prefix, size_t prefix_len) {
+    CELL ident = internal_read_ident(rchan, prefix, prefix_len);
+    STRING *p = GET_STRING(ident);
+    const char *data = p->data;
+    const INT len = p->len;
+    CELL number = internal_string2number(p->data, p->len, 10);
+    if (!FALSEP(number)) {
+        return number;
     }
 
-    // base 10 float:
-    //    [+-]? ([0-9]+ [.]? [0-9]* | [.] [0-9]+) ([esfdl] [+-]? [0-9]+)?
-    // integer:
-    //    [+-]? [[:digit:]]+
-    bool allow_dp = radix == 10 && want_type != T_INT;
-    bool allow_exp = radix == 10 && want_type != T_INT;
-    bool got_sign = false;
-    bool is_negative = false;
-    bool got_dp = false;
-    bool got_digit = false;
-    bool got_exp_marker = false;
-    bool got_exp_sign = true;
-    bool exp_negative = false;
-    bool got_exp_digit = false;
-
-    const INT token_cap = 64;
-    char token[token_cap + 1];
-    INT i = 0;
-
-    // optional sign
-    if (ch == '-' || ch == '+') {
-        got_sign = true;
-        is_negative = (ch == '-');
-        token[i++] = ch;
-        ch = rchan->readch(rchan);
+    if (len > 1 && data[len - 1] == ':') {
+        return make_keyword_counted(data, len - 1);
     }
-
-    // mantissa
-    while (1) {
-        const int lc = tolower(ch);
-        if (allow_dp && !got_dp && lc == '.') {
-            got_dp = true;
-        } else if (lc >= '0' && lc <= '9' && lc - '0' < radix) {
-            got_digit = true;
-        } else if (lc >= 'a' && lc <= 'z' && lc - 'a' + 10 < radix) {
-            got_digit = true;
-        } else {
-            break;
-        }
-        if (i < token_cap) {
-            token[i++] = lc;
-        }
-        ch = rchan->readch(rchan);
-    }
-
-    // optional exponent
-    if (got_digit && allow_exp && strchr(exp_markers, ch)) {
-        got_exp_marker = true;
-        if (i < token_cap) {
-            token[i++] = 'e';
-        }
-        ch = rchan->readch(rchan);
-
-        // optional sign
-        if (ch == '-' || ch == '+') {
-            got_exp_sign = true;
-            exp_negative = ch == '-';
-            if (i < token_cap) {
-                token[i++] = ch;
-            }
-            ch = rchan->readch(rchan);
-        }
-
-        // exponent digits
-        while (ch != EOF) {
-            if (ch >= '0' && ch <= '9') {
-                got_exp_digit = true;
-            } else {
-                break;
-            }
-            if (i < token_cap) {
-                token[i++] = ch;
-            }
-            ch = rchan->readch(rchan);
-        }
-    }
-
-    if (ch != EOF) {
-        rchan->unreadch(rchan, ch);
-    }
-
-    token[i] = '\0';
-
-    if (i >= token_cap) {
-        return make_exception("number too long");
-    }
-    if (!got_digit) {
-        return make_exception("no digits");
-    }
-    if (got_exp_marker && !got_exp_digit) {
-        return make_exception("no exponent digits");
-    }
-
-    if (got_dp || got_exp_marker || want_type == T_FLOAT) {
-        return make_float((FLOAT) strtod(token, 0));
-    }
-    const INT value = strtoll(token, 0, radix ? radix : 10);
-
-    // TODO could silently convert to float instead?
-    if (value < -((INT)1 << 47)) {
-        return make_exception("overflow parsing integer");
-    }
-    if (value >= ((INT)1 << 47)) {
-        return make_exception("overflow parsing integer");
-    }
-    return make_int(value);
+    return make_symbol_counted(data, len);
 }
 
-// FIXME strings should not have a maximum length!
 CELL internal_read_string(RCHAN *rchan, int ch) {
-    const INT max_len = 16384;
-    char *token = malloc(max_len + 1);
-    INT i = 0;
+    CELL str = V_EMPTY;
+
+    char buf[4096];
+    const size_t buf_cap = sizeof(buf);
+    int buf_len = 0;
+
     while (true) {
         ch = rchan->readch(rchan);
         if (ch == '"') {
@@ -294,7 +228,6 @@ CELL internal_read_string(RCHAN *rchan, int ch) {
             ch = rchan->readch(rchan);
             switch (ch) {
                 case EOF:
-                    free(token);
                     return make_exception("unexpected EOF in string");
 
                 case '\\':
@@ -319,20 +252,26 @@ CELL internal_read_string(RCHAN *rchan, int ch) {
                     break;
 
                 default:
-                    free(token);
                     return make_exception("unexpected escape sequence in string \\%c", ch);
             }
         }
-        if (i >= max_len) {
-            free(token);
-            return make_exception("buffer overflow reading string");
+        buf[buf_len++] = (char) (unsigned char) ch;
+        if (buf_len == buf_cap) {
+            if (EMPTYP(str)) {
+                str = make_string_counted(buf, buf_len);
+            } else {
+                str = unsafe_extend_string_counted(str, buf, buf_len);
+            }
+            buf_len = 0;
         }
-        token[i++] = (char) (unsigned char) ch;
     }
-    token[i] = '\0';
-    CELL s = make_string(token);
-    free(token);
-    return s;
+    if (EMPTYP(str)) {
+        return make_string_counted(buf, buf_len);
+    }
+    if (buf_len == 0) {
+        return str;
+    }
+    return unsafe_extend_string_counted(str, buf, buf_len);
 }
 
 CELL internal_read_char_const(RCHAN *rchan) {
@@ -342,46 +281,32 @@ CELL internal_read_char_const(RCHAN *rchan) {
         return make_exception("malformed character constant");
     }
 
-    int ch2 = rchan->readch(rchan);
-    rchan->unreadch(rchan, ch2);
-    if (!isalpha(ch2)) {
+    int lookahead = rchan->readch(rchan);
+    if (!is_ident_char(lookahead)) {
+        rchan->unreadch(rchan, lookahead);
         return make_char(ch);
     }
 
-    // only needs to accommodate longest valid named character
-    // TODO: possibly should skip alphas beyond max_len though
-    const INT max_len = 32;
-    char buf[max_len + 1];
-    INT i = 0;
-    while (1) {
-        buf[i++] = (char) (unsigned char) ch;
-        if (i >= max_len) {
-            break;
-        }
-        ch = rchan->readch(rchan);
-        if (!isalpha(ch)) {
-            rchan->unreadch(rchan, ch);
-            break;
-        }
-    }
-    buf[i] = '\0';
+    const char prefix[] = {ch, lookahead};
+    CELL ident = internal_read_ident(rchan, prefix, sizeof(prefix));
+    const char *data = GET_STRING(ident)->data;
 
-    if (0 == strcasecmp(buf, "space")) return make_char(' ');
-    if (0 == strcasecmp(buf, "nul")) return make_char(0);
-    if (0 == strcasecmp(buf, "escape")) return make_char(27);
-    if (0 == strcasecmp(buf, "rubout")) return make_char(127);
-    if (0 == strcasecmp(buf, "alarm")) return make_char('\a');
-    if (0 == strcasecmp(buf, "backspace")) return make_char('\b');
-    if (0 == strcasecmp(buf, "page")) return make_char('\f');
-    if (0 == strcasecmp(buf, "newline")) return make_char('\n');
-    if (0 == strcasecmp(buf, "return")) return make_char('\r');
-    if (0 == strcasecmp(buf, "tab")) return make_char('\t');
-    if (0 == strcasecmp(buf, "vtab")) return make_char('\v');
-    return make_exception("unrecognised character constant: #\\%s", buf);
+    if (0 == strcasecmp(data, "space")) return make_char(' ');
+    if (0 == strcasecmp(data, "nul")) return make_char(0);
+    if (0 == strcasecmp(data, "escape")) return make_char(27);
+    if (0 == strcasecmp(data, "rubout")) return make_char(127);
+    if (0 == strcasecmp(data, "alarm")) return make_char('\a');
+    if (0 == strcasecmp(data, "backspace")) return make_char('\b');
+    if (0 == strcasecmp(data, "page")) return make_char('\f');
+    if (0 == strcasecmp(data, "newline")) return make_char('\n');
+    if (0 == strcasecmp(data, "return")) return make_char('\r');
+    if (0 == strcasecmp(data, "tab")) return make_char('\t');
+    if (0 == strcasecmp(data, "vtab")) return make_char('\v');
+    return make_exception("unrecognised character constant: #\\%s", data);
 }
 
 // FIXME we need an internal tokeniser that returns a delimited character sequence.
-CELL read_token(RCHAN *rchan) {
+CELL internal_read_atom(RCHAN *rchan) {
     while (1) {
         int ch = rchan->readch(rchan);
         switch (ch) {
@@ -398,31 +323,37 @@ CELL read_token(RCHAN *rchan) {
             case '\\': return V_CHAR_BACKSLASH;
             case '|': return V_CHAR_PIPE;
             case '#': {
-                int lookahead = rchan->readch(rchan);
-                switch (lookahead) {
+                const int lookahead = rchan->readch(rchan);
+                switch (tolower(lookahead)) {
                     case '\\': return internal_read_char_const(rchan);
                     case 't': return V_TRUE;
                     case 'f': return V_FALSE;
                     case '(': return internal_read_vector(rchan);
-                    case 'b': return internal_read_number(rchan, 2, -1, T_INT);
-                    case 'o': return internal_read_number(rchan, 8, -1, T_INT);
-                    case 'd': return internal_read_number(rchan, 10, -1, T_EMPTY);
-                    case 'x': return internal_read_number(rchan, 16, -1, T_INT);
+                    case 'i':
+                    case 'e':
+                    case 'b':
+                    case 'o':
+                    case 'd':
+                    case 'x': {
+                        const char prefix[] = {'#', lookahead};
+                        return internal_read_number_or_symbol(rchan, prefix, sizeof(prefix));
+                    }
                     default:
-                        return make_exception("illegal sequence: #%c", lookahead);
+                        break;
                 }
-                rchan->unreadch(rchan, lookahead);
-                break;
+                return make_exception("illegal sequence: #%c", lookahead);
             }
             case ',': {
-                int lookahead = rchan->readch(rchan);
+                const int lookahead = rchan->readch(rchan);
                 if (lookahead == '@') {
                     return V_COMMA_AT;
                 }
                 rchan->unreadch(rchan, lookahead);
                 return V_CHAR_COMMA;
             }
-            case '"': return internal_read_string(rchan, ch);
+            case '"': {
+                return internal_read_string(rchan, ch);
+            }
             case ';':
                 while (1) {
                     ch = rchan->readch(rchan);
@@ -430,37 +361,70 @@ CELL read_token(RCHAN *rchan) {
                     if (ch == '\r' || ch == '\n') break;
                 }
                 continue;
-            case '.': {
-                int lookahead = rchan->readch(rchan);
-                rchan->unreadch(rchan, lookahead);
-                if (isdigit(lookahead)) {
-                    return internal_read_number(rchan, 10, ch, T_EMPTY);
-                }
-                if (isspace(lookahead)) {
-                    return V_CHAR_DOT;
-                }
-                return internal_read_symbol(rchan, ch);
-            }
             case '+':
             case '-': {
-                int lookahead = rchan->readch(rchan);
+                const char prefix[] = {ch};
+                return internal_read_number_or_symbol(rchan, prefix, sizeof(prefix));
+            }
+            case '.': {
+                const int lookahead = rchan->readch(rchan);
                 rchan->unreadch(rchan, lookahead);
-                if (isdigit(lookahead) || lookahead == '.') {
-                    return internal_read_number(rchan, 10, ch, T_EMPTY);
+                if (is_ident_char(lookahead)) {
+                    const char prefix[] = {ch};
+                    return internal_read_number_or_symbol(rchan, prefix, sizeof(prefix));
                 }
-                return internal_read_symbol(rchan, ch);
+                return V_CHAR_DOT;
             }
             default: break;
         }
 
-        if (isalpha(ch) || strchr("!$%&*/:<=>?@^_~", ch)) {
-            return internal_read_symbol(rchan, ch);
+        if (isdigit(ch) || is_symbol_prefix(ch)) {
+            const char prefix[] = {ch};
+            return internal_read_number_or_symbol(rchan, prefix, sizeof(prefix));
         }
-        if (isdigit(ch)) {
-            return internal_read_number(rchan, 10, ch, T_EMPTY);
-        }
+
         if (!isspace(ch)) {
             return V_CHAR_NUL;
+        }
+    }
+}
+
+CELL read_token(RCHAN *rchan) {
+    while (1) {
+        int ch = rchan->readch(rchan);
+        switch (ch) {
+            case EOF: {
+                return V_EOF;
+            }
+            case ',': {
+                const int lookahead = rchan->readch(rchan);
+                if (lookahead == '@') {
+                    return V_COMMA_AT;
+                }
+                rchan->unreadch(rchan, lookahead);
+                return make_char(ch);
+            }
+            case '"': {
+                return internal_read_string(rchan, ch);
+            }
+            case ';': {
+                while (1) {
+                    ch = rchan->readch(rchan);
+                    if (ch == EOF) return V_EOF;
+                    if (ch == '\r' || ch == '\n') break;
+                }
+                continue;
+            }
+            default:
+                break;
+        }
+
+        if (is_ident_char(ch)) {
+            rchan->unreadch(rchan, ch);
+            return internal_read_ident(rchan, 0, 0);
+        }
+        if (!isspace(ch)) {
+            return make_char(ch);
         }
     }
 }
@@ -478,14 +442,14 @@ CELL internal_read_list(RCHAN *rchan, bool allow_dot, INT *ret_len) {
 
     INT len = 0;
     while (1) {
-        token = read_token(rchan);
+        token = internal_read_atom(rchan);
         if (EXCEPTIONP(token)) {
             gc_unroot();
             return token;
         }
         if (EQP(token, V_EOF)) {
             gc_unroot();
-            return make_exception("unexpected EOF");
+            return make_exception("unexpected EOF in list");
         }
         if (EQP(token, V_CHAR_RPAREN)) {
             break;
@@ -505,7 +469,7 @@ CELL internal_read_list(RCHAN *rchan, bool allow_dot, INT *ret_len) {
             } else {
                 CDR(pre_tail) = token;
             }
-            token = read_token(rchan);
+            token = internal_read_atom(rchan);
             if (EXCEPTIONP(token)) {
                 gc_unroot();
                 return token;
@@ -565,7 +529,7 @@ CELL internal_read_vector(RCHAN *rchan) {
 
 CELL internal_read(RCHAN *rchan, CELL token) {
     if (EMPTYP(token)) {
-        token = read_token(rchan);
+        token = internal_read_atom(rchan);
         if (EXCEPTIONP(token)) { return token; }
     }
 
@@ -574,15 +538,25 @@ CELL internal_read(RCHAN *rchan, CELL token) {
     if (EQP(token, V_CHAR_DOT)) { return make_exception("illegal use of '.'"); }
 
     CELL prefix = V_EMPTY;
-    if (EQP(token, V_CHAR_QUOTE)) { prefix = V_QUOTE; } else if (
-        EQP(token, V_CHAR_QUASIQUOTE)) { prefix = V_QUASIQUOTE; } else if (
-        EQP(token, V_CHAR_COMMA)) { prefix = V_UNQUOTE; } else if (EQP(token, V_COMMA_AT)) {
+    if (EQP(token, V_CHAR_QUOTE)) {
+        prefix = V_QUOTE;
+    } else if (EQP(token, V_CHAR_QUASIQUOTE)) {
+        prefix = V_QUASIQUOTE;
+    } else if (EQP(token, V_CHAR_COMMA)) {
+        prefix = V_UNQUOTE;
+    } else if (EQP(token, V_COMMA_AT)) {
         prefix = V_UNQUOTE_SPLICING;
-    } else { return token; }
+    } else {
+        return token;
+    }
 
     CELL form = V_EMPTY;
     gc_root_2("internal_read", prefix, form);
     form = internal_read(rchan, V_EMPTY);
+    if (EQP(form, V_EOF)) {
+         form = make_exception2(prefix, "unexpected EOF in quotation form");
+    }
+
     if (EXCEPTIONP(form)) {
         gc_unroot();
         return form;

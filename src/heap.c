@@ -136,6 +136,35 @@ CELL make_immutable_string_counted(const char *s, INT len) {
     return string;
 }
 
+// Append to a freshly allocated string, reallocating
+// it if necessary. Return the extended string.
+CELL unsafe_extend_string_counted(CELL source, const char *s, INT len) {
+    gc_root_1("unsafe_extend_string", source);
+    const bool ok = gc_extend_bytes_raw(len);
+    gc_unroot();
+
+    STRING *p = GET_STRING(source);
+    const size_t new_len = p->len + len;
+
+    if (ok) {
+        // no gc occurred, we're safe to fix it up in-place
+        memcpy(p->data + p->len, s, len);
+        p->data[new_len] = '\0';
+        p->len = new_len;
+        return source;
+    }
+
+    // otherwise allocate a new string of sufficient length
+    CELL dest = make_raw_string((INT) new_len);
+    p = GET_STRING(source);
+    STRING *q = GET_STRING(dest);
+    q->immutable = p->immutable;
+    memcpy(q->data, p->data, p->len);
+    memcpy(q->data + p->len, s, len);
+    q->data[new_len] = '\0';
+    return dest;
+}
+
 CELL make_string(const char *s) {
     size_t k = strlen(s);
     CELL string = make_raw_string((INT) k);

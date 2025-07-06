@@ -7,6 +7,7 @@ wisp_SOURCES += bool.c bool.h
 wisp_SOURCES += char.c char.h
 wisp_SOURCES += compile.c compile.h
 wisp_SOURCES += control.c control.h
+wisp_SOURCES += convert.c convert.h
 wisp_SOURCES += env.c env.h
 wisp_SOURCES += equiv.c equiv.h
 wisp_SOURCES += eval.c eval.h

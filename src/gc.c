@@ -273,7 +273,16 @@ void gc_init(size_t extent) {
 static void* ignore_until = 0;
 #endif
 
-void gc_check_headroom_bytes(size_t bytes) {
+bool gc_extend_bytes_raw(size_t bytes) {
+    bytes = ALIGN_SIZE_UP(bytes);
+    if (!gc_check_headroom_bytes(bytes)) {
+        return false;
+    }
+    gc_next += bytes;
+    return true;
+}
+
+bool gc_check_headroom_bytes(size_t bytes) {
 #if defined(DEBUG_HEAP)
 	if (opt_heap_check_rand && random() % 1000 < opt_heap_check_rand) {
 		printf("HDRM (%u)", gc_num_allocs);
@@ -283,7 +292,8 @@ void gc_check_headroom_bytes(size_t bytes) {
 		gc_check_heap();
 	}
 #endif
-    if (gc_next + bytes > gc_end) {
+    const bool ok = gc_next + bytes <= gc_end;
+    if (!ok) {
         gc_collect();
         if (gc_next + bytes > gc_end) {
             gc_die("out of memory\n");
@@ -292,14 +302,15 @@ void gc_check_headroom_bytes(size_t bytes) {
 #if defined(DEBUG_HEAP)
 	ignore_until = gc_next + bytes;
 #endif
+    return ok;
 }
 
-void gc_check_headroom_list(INT n) {
-    gc_check_headroom_bytes(1024 + n * ALIGN_SIZE_UP(sizeof(CONS)));
+bool gc_check_headroom_list(INT n) {
+    return gc_check_headroom_bytes(1024 + n * ALIGN_SIZE_UP(sizeof(CONS)));
 }
 
-void gc_check_headroom() {
-    gc_check_headroom_bytes(1024);
+bool gc_check_headroom() {
+    return gc_check_headroom_bytes(1024);
 }
 
 // allocate the specified number of bytes of storage,

@@ -1,10 +1,10 @@
 #include "wisp.h"
 #include "arith.h"
 
+#include "convert.h"
 #include "gc.h"
 #include <math.h>
-#include <stdlib.h>
-#include <string.h>
+
 
 DECLARE_FUNC(
     func_numberp, 1, 1,
@@ -506,90 +506,24 @@ DECLARE_FUNC(
 
 CELL func_number2string(CELL frame) {
     ASSERT_NUMBERP(0);
+    CELL number = FV0;
     INT radix = 10;
     if (FC == 2) {
         ASSERT_INTP(1);
         radix = GET_INT(FV1);
     }
-    const size_t cap = 64;
-    char buf[cap];
-    INT len = 0;
-    if (INTP(FV0)) {
-        INT num = GET_INT(FV0);
-        // TODO get base 2 support into print and read routines
-        if (radix == 2) {
-            const bool neg = num < 0;
-            if (neg) {
-                num = -num;
-            }
-
-            char *p = &buf[cap];
-            do {
-                len++;
-                *--p = (num & 1) ? '1' : '0';
-                num >>= 1;
-            } while (num != 0);
-
-            char *q = &buf[neg ? 1 : 0];
-            memmove(q, p, len);
-            if (neg) {
-                buf[0] = '-';
-                len++;
-            }
-            buf[len] = '\0';
-        } else {
-            char *fmt;
-            switch (radix) {
-                case 8:
-                    fmt = num < 0 ? "-%llo" : "%llo";
-                    num = llabs(num);
-                    break;
-                case 10:
-                    fmt = "%lld";
-                    break;
-                case 16:
-                    fmt = num < 0 ? "-%llx" : "%llx";
-                    num = llabs(num);
-                    break;
-                default:
-                    return make_exception("unsupported radix");
-            }
-            len = snprintf(buf, sizeof(buf), fmt, num);
-        }
-    } else {
-        const FLOAT num = GET_FLOAT(FV0);
-        if (radix != 10) {
-            return make_exception("unsupported radix");
-        }
-        len = snprintf(buf, sizeof(buf), "%f", num);
+    char buf[72];
+    const size_t cap = sizeof(buf);
+    int len = internal_number2string(number, radix, buf, cap);
+    if (len == 0) {
+        return make_exception("unsupported radix");
     }
-    if (len >= sizeof(buf)) {
+    if (len >= cap) {
+        // Arguably this should be an assert, as it means buf
+        // is too small.
         return make_exception("conversion buffer overflow");
     }
     return make_string_counted(buf, len);
-}
-
-#include "read.h"
-
-typedef struct {
-    CELL str;
-    INT pos;
-} STRING_RCHAN;
-
-static int stringreader_readch(RCHAN *rchan) {
-    STRING_RCHAN *st = rchan->state;
-    STRING *p = GET_STRING(st->str);
-    if (st->pos < p->len) {
-        return p->data[st->pos++];
-    }
-    return EOF;
-}
-
-static void stringreader_unreadch(RCHAN *rchan, int ch) {
-    STRING_RCHAN *st = rchan->state;
-    if (st->pos > 0) {
-        --st->pos;
-    }
 }
 
 DECLARE_FUNC(
@@ -614,29 +548,46 @@ CELL func_string2number(CELL frame) {
             case 16:
                 break;
             default:
-                return make_exception("unsupport radix");
+                return make_exception("unsupported radix");
         }
     }
-    if (GET_STRING(FV0)->len == 0) {
-        return V_FALSE;
+
+    STRING *p = GET_STRING(FV0);
+    return internal_string2number(p->data, p->len, radix);
+}
+
+DECLARE_FUNC(
+    func_exact2inexact, 1, 1,
+    "exact->inexact", "number",
+    "Returns the closest inexact representation of <number>."
+)
+
+CELL func_exact2inexact(CELL frame) {
+    ASSERT_NUMBERP(0);
+    const FLOAT fval = NUMBER_AS_FLOAT(FV0);
+    return make_float(fval);
+}
+
+DECLARE_FUNC(
+    func_inexact2exact, 1, 1,
+    "inexact->exact", "number",
+    "Returns an exact representation of <number>. It is an error if <number>"
+    " cannot be represented exactly."
+)
+
+CELL func_inexact2exact(CELL frame) {
+    ASSERT_NUMBERP(0);
+    if (INTP(FV0)) {
+        return FV0;
     }
-    STRING_RCHAN sr = {FV0, 0};
-    RCHAN rchan = {
-        (void *) &sr,
-        stringreader_readch,
-        stringreader_unreadch
-    };
-    // internal_read_number may provoke a GC, so we'd better protect sr.str
-    gc_root_1("func_string2number", sr.str);
-    CELL res = internal_read_number(&rchan, radix, -1, T_EMPTY);
-    if (EXCEPTIONP(res)) {
-        res = V_FALSE;
-    } else if (rchan.readch(&rchan) != EOF) {
-        // didn't consume the entire string
-        res = V_FALSE;
+    const FLOAT fval = GET_FLOAT(FV0);
+    if (-((INT)1 << 47) <= fval && fval < ((INT)1 << 47)) {
+        const INT ival = (INT) fval;
+        if ((FLOAT)ival == fval) {
+            return make_int(ival);
+        }
     }
-    gc_unroot();
-    return res;
+    return make_exception("conversion failed");
 }
 
 void arith_register_symbols() {
@@ -691,4 +642,6 @@ void arith_register_symbols() {
 
     register_func(&meta_func_number2string);
     register_func(&meta_func_string2number);
+    register_func(&meta_func_exact2inexact);
+    register_func(&meta_func_inexact2exact);
 }

@@ -11,6 +11,8 @@ extern CELL unsafe_make_list_2(CELL e1, CELL e2);
 
 extern CELL unsafe_make_list_3(CELL e1, CELL e2, CELL e3);
 
+extern CELL unsafe_extend_string_counted(CELL source, const char *s, INT len);
+
 extern FUNC_ENTRY func_entries[];
 
 #endif // HEAP_H
