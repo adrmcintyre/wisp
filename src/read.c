@@ -320,7 +320,6 @@ CELL internal_read_atom(RCHAN *rchan) {
             case ']': return V_CHAR_RBRACK;
             case '\'': return V_CHAR_QUOTE;
             case '`': return V_CHAR_QUASIQUOTE;
-            case '\\': return V_CHAR_BACKSLASH;
             case '|': return V_CHAR_PIPE;
             case '#': {
                 const int lookahead = rchan->readch(rchan);
@@ -629,7 +628,7 @@ void init_readline() {
 #  if HAVE_RL_COMPLETION_ENTRY_FUNCTION
     // enable simple readline completion
     rl_attempted_completion_function = reader_completion;
-    rl_basic_word_break_characters = " \r\n\t\"\\(){}[]'`|#,@;.";
+    rl_basic_word_break_characters = " \r\n\t\"(){}[]'`#,;";
     //rl_basic_quote_characters = "";
 #  endif /* HAVE_RL_COMPLETION_ENTRY_FUNCTION */
 }

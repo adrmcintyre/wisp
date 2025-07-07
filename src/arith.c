@@ -500,8 +500,8 @@ DECLARE_FUNC(
     "number->string",
     "number [radix:integer]",
     "Returns the display representation of <number> in base 10. If <radix> is"
-    " provided it specifies a different base. It is an error to request a base"
-    " other than 2, 8, 10 or 16."
+    " provided it specifies a different base. It is an error to specify a base"
+    " outside the range 2 to 36."
 );
 
 CELL func_number2string(CELL frame) {
@@ -511,19 +511,25 @@ CELL func_number2string(CELL frame) {
     if (FC == 2) {
         ASSERT_INTP(1);
         radix = GET_INT(FV1);
+        if (INTP(number)) {
+            if (! (2 <= radix && radix <= 36)) {
+                return make_exception("unsupported radix for exact number");
+            }
+        } else {
+            if (radix != 10) {
+                return make_exception("unsupported radix for inexact number");
+            }
+        }
     }
     char buf[72];
     const size_t cap = sizeof(buf);
     int len = internal_number2string(number, radix, buf, cap);
-    if (len == 0) {
-        return make_exception("unsupported radix");
-    }
     if (len >= cap) {
         // Arguably this should be an assert, as it means buf
         // is too small.
         return make_exception("conversion buffer overflow");
     }
-    return make_string_counted(buf, len);
+    return make_string(buf);
 }
 
 DECLARE_FUNC(
@@ -531,8 +537,7 @@ DECLARE_FUNC(
     "string->number",
     "string [radix:integer]",
     "Parses <string> as a number in base 10. If <radix> is provided it specifies"
-    " a different base. It is an error to request a base other than 2, 8, 10"
-    " or 16."
+    " a different base. It is an error to specify a base outside the range 2 to 36."
 );
 
 CELL func_string2number(CELL frame) {
@@ -541,14 +546,8 @@ CELL func_string2number(CELL frame) {
     if (FC == 2) {
         ASSERT_INTP(1);
         radix = GET_INT(FV1);
-        switch (radix) {
-            case 2:
-            case 8:
-            case 10:
-            case 16:
-                break;
-            default:
-                return make_exception("unsupported radix");
+        if (! (2 <= radix && radix <= 36)) {
+            return make_exception("unsupported radix");
         }
     }
 

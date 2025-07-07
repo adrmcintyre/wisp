@@ -1,4 +1,4 @@
-Support reading of rationals (but convert to double / int).
+Hoist reader into scheme.
 
 Exceptions need some sort of type field.
 

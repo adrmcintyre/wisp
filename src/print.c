@@ -104,7 +104,7 @@ void internal_generic_output(FILE *fp, CELL cell, bool strict) {
             const size_t cap = sizeof(buf);
             int len = internal_number2string(cell, 10, buf, cap);
             if (len < cap) {
-                fwrite(buf, 1, len, fp);
+                fputs(buf, fp);
             } else {
                 fputs("#<number>", fp);
             }
