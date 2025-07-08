@@ -203,22 +203,23 @@ GEN_INPUT_FUNC(
 )
 
 GEN_INPUT_FUNC(
-    func_read_char,
-    "read-char",
-    "Returns the next character read from <input-port>, or the value returned"
-    " by (eof-object) if end of stream is reached."
-    " If <input-port> is not supplied, (current-input-port) is used instead.",
-    const int ch = internal_read_char(&rchan); return (ch == EOF) ? V_EOF : make_char(ch)
-)
-
-/*
-GEN_INPUT_FUNC(
     func_read_token,
     "%read-token",
     "Returns the next token read from <input-port>, or the value returned"
     " by (eof-object) if end of stream is reached."
     " If <input-port> is not supplied, (current-input-port) is used instead.",
-    return internal_read_ident(&rchan, )
+    return internal_read_token(&rchan)
+)
+
+GEN_INPUT_FUNC(
+    func_read_string,
+    "%read-string",
+    "Reads a \" delimited string from <input-port>, and returns it."
+    " Returns #f if the next character is not the string delimiter."
+    " Returns (eof-object) if end of stream is reached before encountering a"
+    " closing string delimiter."
+    " If <input-port> is not supplied, (current-input-port) is used instead.",
+    return internal_read_string(&rchan)
 )
 
 GEN_INPUT_FUNC(
@@ -233,9 +234,46 @@ GEN_INPUT_FUNC(
     " An identifier character is any character which is valid in a symbol or a"
     " number."
     " If <input-port> is not supplied, (current-input-port) is used instead.",
-    return internal_read_ident(&rchan)
+    return internal_read_ident(&rchan, 0, 0)
 )
-*/
+
+GEN_INPUT_FUNC(
+    func_read_char,
+    "read-char",
+    "Returns the next character read from <input-port>, or the value returned"
+    " by (eof-object) if end of stream is reached."
+    " If <input-port> is not supplied, (current-input-port) is used instead.",
+    const int ch = internal_read_char(&rchan); return (ch == EOF) ? V_EOF : make_char(ch)
+)
+
+DECLARE_FUNC(
+    func_unread_char, 1, 2,
+    "unread-char", "char [input-port]",
+    "Pushes <char> back to <input-port>. Only one character may be pushed back"
+    " without an intervening read operation."
+    " If <input-port> is not supplied, (current-input-port) is used instead."
+)
+
+CELL func_unread_char(CELL frame) {
+    ASSERT_CHARP(0);
+    if (FC == 2) {
+        ASSERT_INPUT_PORTP(1);
+    }
+    const char ch = GET_CHAR(FV0);
+    const CELL port = (FC == 2) ? FV1 : current_input_port;
+
+    FILE *fp = GET_PORT(port)->fp;
+    if (fp == 0) {
+        return make_exception("port not open");
+    }
+    RCHAN rchan = {
+        fp,
+        internal_read_char,
+        internal_unread_char
+    };
+    rchan.unreadch(&rchan, ch);
+    return V_VOID;
+}
 
 GEN_INPUT_FUNC(
     func_peek_char,
@@ -440,7 +478,11 @@ void io_register_symbols() {
     register_func(&meta_func_close_output_port);
 
     register_func(&meta_func_read);
+    register_func(&meta_func_read_token);
+    register_func(&meta_func_read_string);
+    register_func(&meta_func_read_identifier_string);
     register_func(&meta_func_read_char);
+    register_func(&meta_func_unread_char);
     register_func(&meta_func_peek_char);
     register_func(&meta_func_eof_object);
     register_func(&meta_func_eof_objectp);

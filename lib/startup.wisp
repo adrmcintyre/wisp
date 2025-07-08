@@ -31,10 +31,14 @@
 (require "core/dynamic-wind")
 (require "core/exception")
 (require "core/syntax-rules")
-(require "core/arith")
-(require "core/io")
-(require "core/promise")
 (require "core/output")
+(require "core/reader")
+(require "core/io")
+(require "core/load")
+; any syntax enabled by core/reader is available after this point
+; for example alternate parens: [...] and {...}
+
+(require "core/arith")
+(require "core/promise")
 (require "core/pretty-print")
 (require "core/help")
-

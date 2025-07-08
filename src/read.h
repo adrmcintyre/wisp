@@ -21,6 +21,10 @@ extern CELL internal_read(RCHAN *rchan, CELL token);
 
 extern CELL internal_read_ident(RCHAN *rchan, const char *prefix, size_t prefix_len);
 
+extern CELL internal_read_token(RCHAN *rchan);
+
+extern CELL internal_read_string(RCHAN *rchan);
+
 extern CELL internal_read_number(RCHAN *rchan, const char *prefix, size_t prefix_len);
 
 extern CELL internal_read_vector(RCHAN *rchan);

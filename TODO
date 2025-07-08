@@ -1,5 +1,3 @@
-Hoist reader into scheme.
-
 Exceptions need some sort of type field.
 
 Macros should be shadowed by let and lambda bindings.

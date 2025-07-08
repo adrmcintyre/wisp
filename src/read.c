@@ -39,21 +39,19 @@ extern void add_history ();
 #endif /* HAVE_READLINE */
 
 CELL V_EOF = V_EMPTY;
-CELL V_CHAR_NUL = V_EMPTY;
-CELL V_CHAR_LPAREN = V_EMPTY;
-CELL V_CHAR_RPAREN = V_EMPTY;
-CELL V_CHAR_LBRACE = V_EMPTY;
-CELL V_CHAR_RBRACE = V_EMPTY;
-CELL V_CHAR_LBRACK = V_EMPTY;
-CELL V_CHAR_RBRACK = V_EMPTY;
-CELL V_CHAR_QUOTE = V_EMPTY;
-CELL V_CHAR_QUASIQUOTE = V_EMPTY;
-CELL V_CHAR_HASH = V_EMPTY;
-CELL V_CHAR_BACKSLASH = V_EMPTY;
-CELL V_CHAR_PIPE = V_EMPTY;
-CELL V_CHAR_COMMA = V_EMPTY;
-CELL V_CHAR_DOT = V_EMPTY;
-CELL V_COMMA_AT = V_EMPTY;
+CELL V_TOKEN_NUL = V_EMPTY;
+CELL V_TOKEN_LPAREN = V_EMPTY;
+CELL V_TOKEN_RPAREN = V_EMPTY;
+CELL V_TOKEN_LBRACE = V_EMPTY;
+CELL V_TOKEN_RBRACE = V_EMPTY;
+CELL V_TOKEN_LBRACK = V_EMPTY;
+CELL V_TOKEN_RBRACK = V_EMPTY;
+CELL V_TOKEN_QUOTE = V_EMPTY;
+CELL V_TOKEN_QUASIQUOTE = V_EMPTY;
+CELL V_TOKEN_PIPE = V_EMPTY;
+CELL V_TOKEN_COMMA = V_EMPTY;
+CELL V_TOKEN_DOT = V_EMPTY;
+CELL V_TOKEN_COMMA_AT = V_EMPTY;
 
 // FIXME - we need to abstract all this and create our own file handle type
 // (each filehandle needs its own buffer). We should call isatty to determine
@@ -142,6 +140,10 @@ int internal_peek_char(RCHAN *rchan) {
     return ch;
 }
 
+
+// ()`[]{}|;'",
+
+
 #define SYMBOL_PREFIX_SPECIALS "!$%&*/:<=>?@^_~\\"
 #define IDENT_SPECIALS (SYMBOL_PREFIX_SPECIALS "#.+-")
 
@@ -209,13 +211,21 @@ CELL internal_read_number_or_symbol(RCHAN *rchan, const char *prefix, size_t pre
     return make_symbol_counted(data, len);
 }
 
-CELL internal_read_string(RCHAN *rchan, int ch) {
+CELL internal_read_string(RCHAN *rchan) {
     CELL str = V_EMPTY;
 
     char buf[4096];
     const size_t buf_cap = sizeof(buf);
     int buf_len = 0;
 
+    int ch = rchan->readch(rchan);
+    if (ch == EOF) {
+        return V_EOF;
+    }
+    if (ch != '"') {
+        rchan->unreadch(rchan, ch);
+        return V_FALSE;
+    }
     while (true) {
         ch = rchan->readch(rchan);
         if (ch == '"') {
@@ -305,22 +315,21 @@ CELL internal_read_char_const(RCHAN *rchan) {
     return make_exception("unrecognised character constant: #\\%s", data);
 }
 
-// FIXME we need an internal tokeniser that returns a delimited character sequence.
 CELL internal_read_atom(RCHAN *rchan) {
     while (1) {
         int ch = rchan->readch(rchan);
         switch (ch) {
             case EOF: return V_EOF;
-            case '\0': return V_CHAR_NUL;
-            case '(': return V_CHAR_LPAREN;
-            case ')': return V_CHAR_RPAREN;
-            case '{': return V_CHAR_LBRACE;
-            case '}': return V_CHAR_RBRACE;
-            case '[': return V_CHAR_LBRACK;
-            case ']': return V_CHAR_RBRACK;
-            case '\'': return V_CHAR_QUOTE;
-            case '`': return V_CHAR_QUASIQUOTE;
-            case '|': return V_CHAR_PIPE;
+            case '\0': return V_TOKEN_NUL;
+            case '(': return V_TOKEN_LPAREN;
+            case ')': return V_TOKEN_RPAREN;
+            case '{': return V_TOKEN_LBRACE;
+            case '}': return V_TOKEN_RBRACE;
+            case '[': return V_TOKEN_LBRACK;
+            case ']': return V_TOKEN_RBRACK;
+            case '\'': return V_TOKEN_QUOTE;
+            case '`': return V_TOKEN_QUASIQUOTE;
+            case '|': return V_TOKEN_PIPE;
             case '#': {
                 const int lookahead = rchan->readch(rchan);
                 switch (tolower(lookahead)) {
@@ -345,13 +354,14 @@ CELL internal_read_atom(RCHAN *rchan) {
             case ',': {
                 const int lookahead = rchan->readch(rchan);
                 if (lookahead == '@') {
-                    return V_COMMA_AT;
+                    return V_TOKEN_COMMA_AT;
                 }
                 rchan->unreadch(rchan, lookahead);
-                return V_CHAR_COMMA;
+                return V_TOKEN_COMMA;
             }
             case '"': {
-                return internal_read_string(rchan, ch);
+                rchan->unreadch(rchan, ch);
+                return internal_read_string(rchan);
             }
             case ';':
                 while (1) {
@@ -372,7 +382,7 @@ CELL internal_read_atom(RCHAN *rchan) {
                     const char prefix[] = {ch};
                     return internal_read_number_or_symbol(rchan, prefix, sizeof(prefix));
                 }
-                return V_CHAR_DOT;
+                return V_TOKEN_DOT;
             }
             default: break;
         }
@@ -383,28 +393,46 @@ CELL internal_read_atom(RCHAN *rchan) {
         }
 
         if (!isspace(ch)) {
-            return V_CHAR_NUL;
+            return V_TOKEN_NUL;
         }
     }
 }
 
-CELL read_token(RCHAN *rchan) {
+CELL internal_read_token(RCHAN *rchan) {
     while (1) {
         int ch = rchan->readch(rchan);
         switch (ch) {
-            case EOF: {
-                return V_EOF;
-            }
-            case ',': {
+            case EOF: return V_EOF;
+
+            case '(':
+            case ')':
+            case '[':
+            case ']':
+            case '{':
+            case '}':
+            case '\'':
+            case '`':
+            case '|':
+            case '#':
+            case '"': return make_char(ch);
+
+            case '.': {
                 const int lookahead = rchan->readch(rchan);
-                if (lookahead == '@') {
-                    return V_COMMA_AT;
+                if (is_ident_char(lookahead)) {
+                    const char prefix[] = {'.', lookahead};
+                    return internal_read_ident(rchan, prefix, sizeof(prefix));
                 }
                 rchan->unreadch(rchan, lookahead);
                 return make_char(ch);
             }
-            case '"': {
-                return internal_read_string(rchan, ch);
+
+            case ',': {
+                const int lookahead = rchan->readch(rchan);
+                if (lookahead == '@') {
+                    return V_TOKEN_COMMA_AT;
+                }
+                rchan->unreadch(rchan, lookahead);
+                return make_char(ch);
             }
             case ';': {
                 while (1) {
@@ -450,10 +478,10 @@ CELL internal_read_list(RCHAN *rchan, bool allow_dot, INT *ret_len) {
             gc_unroot();
             return make_exception("unexpected EOF in list");
         }
-        if (EQP(token, V_CHAR_RPAREN)) {
+        if (EQP(token, V_TOKEN_RPAREN)) {
             break;
         }
-        if (EQP(token, V_CHAR_DOT)) {
+        if (EQP(token, V_TOKEN_DOT)) {
             if (!allow_dot) {
                 gc_unroot();
                 return make_exception("illegal use of '.'");
@@ -473,7 +501,7 @@ CELL internal_read_list(RCHAN *rchan, bool allow_dot, INT *ret_len) {
                 gc_unroot();
                 return token;
             }
-            if (!EQP(token, V_CHAR_RPAREN)) {
+            if (!EQP(token, V_TOKEN_RPAREN)) {
                 gc_unroot();
                 return make_exception("illegal use of '.'");
             }
@@ -532,18 +560,18 @@ CELL internal_read(RCHAN *rchan, CELL token) {
         if (EXCEPTIONP(token)) { return token; }
     }
 
-    if (EQP(token, V_CHAR_LPAREN)) { return internal_read_list(rchan, true, 0); }
-    if (EQP(token, V_CHAR_RPAREN)) { return make_exception("unexpected ')'"); }
-    if (EQP(token, V_CHAR_DOT)) { return make_exception("illegal use of '.'"); }
+    if (EQP(token, V_TOKEN_LPAREN)) { return internal_read_list(rchan, true, 0); }
+    if (EQP(token, V_TOKEN_RPAREN)) { return make_exception("unexpected ')'"); }
+    if (EQP(token, V_TOKEN_DOT)) { return make_exception("illegal use of '.'"); }
 
     CELL prefix = V_EMPTY;
-    if (EQP(token, V_CHAR_QUOTE)) {
+    if (EQP(token, V_TOKEN_QUOTE)) {
         prefix = V_QUOTE;
-    } else if (EQP(token, V_CHAR_QUASIQUOTE)) {
+    } else if (EQP(token, V_TOKEN_QUASIQUOTE)) {
         prefix = V_QUASIQUOTE;
-    } else if (EQP(token, V_CHAR_COMMA)) {
+    } else if (EQP(token, V_TOKEN_COMMA)) {
         prefix = V_UNQUOTE;
-    } else if (EQP(token, V_COMMA_AT)) {
+    } else if (EQP(token, V_TOKEN_COMMA_AT)) {
         prefix = V_UNQUOTE_SPLICING;
     } else {
         return token;
@@ -553,7 +581,7 @@ CELL internal_read(RCHAN *rchan, CELL token) {
     gc_root_2("internal_read", prefix, form);
     form = internal_read(rchan, V_EMPTY);
     if (EQP(form, V_EOF)) {
-         form = make_exception2(prefix, "unexpected EOF in quotation form");
+        form = make_exception2(prefix, "unexpected EOF in quotation form");
     }
 
     if (EXCEPTIONP(form)) {
@@ -637,39 +665,35 @@ void init_readline() {
 
 void read_register_symbols() {
     gc_root_static(V_EOF);
-    gc_root_static(V_CHAR_NUL);
-    gc_root_static(V_CHAR_LPAREN);
-    gc_root_static(V_CHAR_RPAREN);
-    gc_root_static(V_CHAR_LBRACE);
-    gc_root_static(V_CHAR_RBRACE);
-    gc_root_static(V_CHAR_LBRACK);
-    gc_root_static(V_CHAR_RBRACK);
-    gc_root_static(V_CHAR_QUOTE);
-    gc_root_static(V_CHAR_QUASIQUOTE);
-    gc_root_static(V_CHAR_HASH);
-    gc_root_static(V_CHAR_BACKSLASH);
-    gc_root_static(V_CHAR_PIPE);
-    gc_root_static(V_CHAR_COMMA);
-    gc_root_static(V_CHAR_DOT);
-    gc_root_static(V_COMMA_AT);
+    gc_root_static(V_TOKEN_NUL);
+    gc_root_static(V_TOKEN_LPAREN);
+    gc_root_static(V_TOKEN_RPAREN);
+    gc_root_static(V_TOKEN_LBRACE);
+    gc_root_static(V_TOKEN_RBRACE);
+    gc_root_static(V_TOKEN_LBRACK);
+    gc_root_static(V_TOKEN_RBRACK);
+    gc_root_static(V_TOKEN_QUOTE);
+    gc_root_static(V_TOKEN_QUASIQUOTE);
+    gc_root_static(V_TOKEN_PIPE);
+    gc_root_static(V_TOKEN_COMMA);
+    gc_root_static(V_TOKEN_DOT);
+    gc_root_static(V_TOKEN_COMMA_AT);
 
-    //FIXME do not use wisp objects to represent these internal things
+    //FIXME do not use wisp objects to represent these internal things?
     V_EOF = make_symbol("#<eof>");
-    V_CHAR_NUL = make_symbol("#\\nul");
-    V_CHAR_LPAREN = make_symbol("#\\lparen");
-    V_CHAR_RPAREN = make_symbol("#\\rparen");
-    V_CHAR_LBRACE = make_symbol("#\\lbrace");
-    V_CHAR_RBRACE = make_symbol("#\\rbrace");
-    V_CHAR_LBRACK = make_symbol("#\\lbrack");
-    V_CHAR_RBRACK = make_symbol("#\\rbrack");
-    V_CHAR_QUOTE = make_symbol("#\\quote");
-    V_CHAR_QUASIQUOTE = make_symbol("#\\tick");
-    V_CHAR_HASH = make_symbol("#\\hash");
-    V_CHAR_BACKSLASH = make_symbol("#\\backslash");
-    V_CHAR_PIPE = make_symbol("#\\pipe");
-    V_CHAR_COMMA = make_symbol("#\\comma");
-    V_CHAR_DOT = make_symbol("#\\dot");
-    V_COMMA_AT = make_symbol(",@");
+    V_TOKEN_NUL = make_symbol("#\\nul");
+    V_TOKEN_LPAREN = make_symbol("#\\lparen");
+    V_TOKEN_RPAREN = make_symbol("#\\rparen");
+    V_TOKEN_LBRACE = make_symbol("#\\lbrace");
+    V_TOKEN_RBRACE = make_symbol("#\\rbrace");
+    V_TOKEN_LBRACK = make_symbol("#\\lbrack");
+    V_TOKEN_RBRACK = make_symbol("#\\rbrack");
+    V_TOKEN_QUOTE = make_symbol("#\\quote");
+    V_TOKEN_QUASIQUOTE = make_symbol("#\\backquote");
+    V_TOKEN_PIPE = make_symbol("#\\pipe");
+    V_TOKEN_COMMA = make_symbol("#\\comma");
+    V_TOKEN_DOT = make_symbol("#\\dot");
+    V_TOKEN_COMMA_AT = make_symbol(",@");
 
 #ifdef HAVE_READLINE
     init_readline();
