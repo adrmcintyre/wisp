@@ -247,6 +247,46 @@ GEN_INPUT_FUNC(
 )
 
 DECLARE_FUNC(
+    func_set_read_prompt, 1, 1,
+    "set-read-prompt!", "prompt:object",
+    "Sets the prompt to display the next time a line is to be read, as follows:"
+    "\n"
+    "  #f      - do not display a prompt;\n"
+    "  string  - display the given text;\n"
+    "  integer - display a prompt indicating the given indent level."
+)
+
+CELL func_set_read_prompt(CELL frame) {
+    CELL prompt = FV0;
+    if (FALSEP(prompt) || STRINGP(prompt) || INTP(prompt)) {
+        internal_set_read_prompt(prompt);
+        return V_VOID;
+    }
+    return make_exception("expects #f, <string>, <integer> at argument 1");
+}
+
+DECLARE_FUNC(
+    func_read_line, 0, 1,
+    "read-line", "[input-port]",
+    "Returns the next line read from <input-port> as a string, or the value"
+    " returned by (eof-object) if end of stream is reached."
+    " If <input-port> is not supplied, (current-input-port) is used instead."
+)
+
+CELL func_read_line(CELL frame) {
+        if (FC == 1) {
+            ASSERT_INPUT_PORTP(0);
+        }
+        const CELL port = (FC == 1) ? FV1 : current_input_port;
+
+        FILE *fp = GET_PORT(port)->fp;
+        if (fp == 0) {
+            return make_exception("port not open");
+        }
+        return internal_read_line(fp);
+    }
+
+DECLARE_FUNC(
     func_unread_char, 1, 2,
     "unread-char", "char [input-port]",
     "Pushes <char> back to <input-port>. Only one character may be pushed back"
@@ -477,10 +517,12 @@ void io_register_symbols() {
     register_func(&meta_func_close_input_port);
     register_func(&meta_func_close_output_port);
 
+    register_func(&meta_func_set_read_prompt);
     register_func(&meta_func_read);
     register_func(&meta_func_read_token);
     register_func(&meta_func_read_string);
     register_func(&meta_func_read_identifier_string);
+    register_func(&meta_func_read_line);
     register_func(&meta_func_read_char);
     register_func(&meta_func_unread_char);
     register_func(&meta_func_peek_char);

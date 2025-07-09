@@ -4,6 +4,7 @@
 #include "gc.h"
 #include "quasiquote.h"
 #include <ctype.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -57,7 +58,8 @@ CELL V_TOKEN_COMMA_AT = V_EMPTY;
 // (each filehandle needs its own buffer). We should call isatty to determine
 // if we are reading from a file or the user.
 static int nesting_level = 0;
-static char *first_prompt = "";
+static CELL read_prompt = V_FALSE;
+
 #ifdef HAVE_READLINE
 const char histfile[] = ".wisp_history";
 char *histpath = 0;
@@ -68,6 +70,66 @@ static char readbuf[1000];
 static int unread_char = EOF;
 static INT lineno = 0;
 static INT colno = 0;
+
+void internal_set_read_prompt(CELL prompt) {
+    read_prompt = prompt;
+}
+
+const char *internal_get_prompt(char *buf, size_t cap) {
+    if (INTP(read_prompt)) {
+        const INT indent = GET_INT(read_prompt);
+        if (indent > 0) {
+            snprintf(buf, cap, "%lld] %*s", indent,
+                     (((indent <= 15) ? (int)indent : 15) - 1) * 2, "");
+        }
+    } else if (STRINGP(read_prompt)) {
+        strncpy(buf, GET_STRING(read_prompt)->data, cap);
+        buf[cap-1] = '\0';
+    } else {
+        buf[0] = '\0';
+    }
+    return buf;
+}
+
+CELL internal_read_line(FILE *fp) {
+#ifdef HAVE_READLINE
+    if (fp == stdin) {
+        char promptbuf[80] = "";
+        const char *prompt = internal_get_prompt(promptbuf, sizeof(promptbuf));
+        char *buf = readline(prompt);
+        if (!buf) {
+            return V_EOF;
+        }
+#  ifdef HAVE_ADD_HISTORY
+        if (buf[0]) {
+            add_history(buf);
+            if (histpath) {
+                write_history(histpath);
+            }
+        }
+#  endif // HAVE_ADD_HISTORY
+        CELL s = make_string(buf);
+        free(buf);
+        return s;
+    }
+#else // !HAVE_READLINE
+    if (fp == stdin) {
+        char promptbuf[80] = "";
+        const char *prompt = internal_get_prompt(promptbuf, sizeof(promptbuf));
+        fputs(prompt, stdout);
+    }
+#endif // HAVE_READLINE
+    char *buf = 0;
+    size_t cap = 0;
+    const ssize_t len = getline(&buf, &cap, fp);
+    if (len < 0) {
+        free(buf);
+        return feof(fp) ? V_EOF : make_exception("cannot read from input stream");
+    }
+    CELL s = make_string_counted(buf, len);
+    free(buf);
+    return s;
+}
 
 int internal_read_char(RCHAN *rchan) {
     FILE *fp = rchan->state;
@@ -96,13 +158,11 @@ int internal_read_char(RCHAN *rchan) {
         }
 #endif /* HAVE_READLINE */
         colno = 0;
+        lineno++;
         char promptbuf[80] = "";
-        if (nesting_level > 0) {
-            snprintf(promptbuf, sizeof(promptbuf), "%d] %*s", nesting_level,
-                     (((nesting_level <= 9) ? nesting_level : 9) - 1) * 3, "");
-        }
+        const char *prompt = internal_get_prompt(promptbuf, sizeof(promptbuf));
 #ifdef HAVE_READLINE
-        readbuf = readline(lineno++ ? promptbuf : first_prompt);
+        readbuf = readline(prompt);
         if (!readbuf) {
             return EOF;
         }
@@ -116,7 +176,7 @@ int internal_read_char(RCHAN *rchan) {
 #  endif /* HAVE_ADD_HISTORY */
         }
 #else
-        fputs(lineno++ ? promptbuf : first_prompt, stdout);
+        fputs(prompt, stdout);
         if (!fgets(readbuf, sizeof(readbuf), stdin)) {
             return EOF;
         }
@@ -211,7 +271,7 @@ CELL internal_read_number_or_symbol(RCHAN *rchan, const char *prefix, size_t pre
     return make_symbol_counted(data, len);
 }
 
-CELL internal_read_string(RCHAN *rchan) {
+CELL internal_read_string1(RCHAN *rchan) {
     CELL str = V_EMPTY;
 
     char buf[4096];
@@ -282,6 +342,13 @@ CELL internal_read_string(RCHAN *rchan) {
         return str;
     }
     return unsafe_extend_string_counted(str, buf, buf_len);
+}
+
+CELL internal_read_string(RCHAN *rchan) {
+    internal_set_read_prompt(V_FALSE);
+    CELL s = internal_read_string1(rchan);
+    internal_set_read_prompt(make_int(nesting_level));
+    return s;
 }
 
 CELL internal_read_char_const(RCHAN *rchan) {
@@ -459,7 +526,7 @@ CELL internal_read_token(RCHAN *rchan) {
 // read a list up to closing RPAREN, and return number of
 // elements read in *ret_len (if not null)
 CELL internal_read_list(RCHAN *rchan, bool allow_dot, INT *ret_len) {
-    ++nesting_level;
+    internal_set_read_prompt(make_int(++nesting_level));
 
     CELL result = V_NULL;
     CELL pre_tail = V_EMPTY;
@@ -526,7 +593,7 @@ CELL internal_read_list(RCHAN *rchan, bool allow_dot, INT *ret_len) {
     if (ret_len) {
         *ret_len = len;
     }
-    --nesting_level;
+    internal_set_read_prompt(make_int(--nesting_level));
     gc_unroot();
     return result;
 }
@@ -593,8 +660,8 @@ CELL internal_read(RCHAN *rchan, CELL token) {
     return make_cons(prefix, make_cons(form, V_NULL));
 }
 
-CELL internal_read_with_prompt(char *prompt) {
-    first_prompt = prompt;
+CELL internal_read_with_prompt(CELL prompt) {
+    internal_set_read_prompt(prompt);
     nesting_level = 0;
     lineno = 0;
     RCHAN rchan = {
@@ -664,6 +731,7 @@ void init_readline() {
 #endif /* HAVE_READLINE */
 
 void read_register_symbols() {
+    gc_root_static(read_prompt);
     gc_root_static(V_EOF);
     gc_root_static(V_TOKEN_NUL);
     gc_root_static(V_TOKEN_LPAREN);
@@ -678,6 +746,8 @@ void read_register_symbols() {
     gc_root_static(V_TOKEN_COMMA);
     gc_root_static(V_TOKEN_DOT);
     gc_root_static(V_TOKEN_COMMA_AT);
+
+    read_prompt = V_FALSE;
 
     //FIXME do not use wisp objects to represent these internal things?
     V_EOF = make_symbol("#<eof>");

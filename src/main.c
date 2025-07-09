@@ -343,8 +343,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    CELL prompt = make_string("wisp> ");
+    gc_root_static(prompt);
+
     while (1) {
-        const CELL expr = internal_read_with_prompt("wisp> ");
+        const CELL expr = internal_read_with_prompt(prompt);
         // TODO add a trace flag for this
         //internal_print(stdout, expr);
         //fputc('\n', stdout);

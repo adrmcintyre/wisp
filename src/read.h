@@ -13,9 +13,13 @@ int internal_read_char(RCHAN *rchan);
 
 void internal_unread_char(RCHAN *rchan, int ch);
 
+CELL internal_read_line(FILE *fp);
+
 int internal_peek_char(RCHAN *rchan);
 
-extern CELL internal_read_with_prompt(char *prompt);
+extern void internal_set_read_prompt(CELL prompt);
+
+extern CELL internal_read_with_prompt(CELL prompt);
 
 extern CELL internal_read(RCHAN *rchan, CELL token);
 

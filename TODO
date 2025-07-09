@@ -1,8 +1,8 @@
-Exceptions need some sort of type field.
+Install the repl.
+
+Exceptions need some sort of type field; add accessors.
 
 Macros should be shadowed by let and lambda bindings.
-
-Flesh out the repl.
 
 Get byte code compiler working properly.
 

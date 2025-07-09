@@ -1,3 +1,5 @@
+(define core:read-with-prompt #f)
+
 (define core:read #f)
 
 (let ()
@@ -30,7 +32,25 @@
       (string->keyword id)
       (string->symbol id)))
 
-  (define (read-toplevel port)
+  (define (read-toplevel prompt port)
+    (define nesting 0)
+
+    (define (prompt-off!)
+      (set-read-prompt! #f))
+
+    (define (prompt-on!)
+      (set-read-prompt! nesting))
+
+    (define (inc-nesting!)
+      (set! nesting (+ nesting 1))
+      (set-read-prompt! nesting))
+
+    (define (dec-nesting!)
+      (set! nesting (- nesting 1))
+      (set-read-prompt! nesting))
+
+    (define (read-datum)
+      (read-with-token (%read-token port)))
 
     ; TODO - a more efficient implementation would use a 256-vector
     ; and dispatch directly on each possible initial character.
@@ -42,7 +62,7 @@
           ((#\[) (read-list #\]))
           ((#\{) (read-list #\}))
           ((#\') (read-quote 'quote))
-          ((#\") (unread-char tok) (%read-string port))
+          ((#\") (read-string tok))
           ((#\#) (read-special))
           ((#\`) (read-quote 'quasiquote))
           ((#\,) (read-quote 'unquote))
@@ -61,17 +81,20 @@
       ; If we used a literal '(#f) here instead of a freshly allocated cons,
       ; when set-cdr! first modifies tail the literal itself gets changed,
       ; and future results are polluted.
+      (inc-nesting!)
       (let ((head (cons #f '())))
         (let loop ((tail head))
           (let ((tok (%read-token port)))
             (cond
               ((eq? tok close-paren)
+                (dec-nesting!)
                 (cdr head))
               ((eq? tok #\.)
                 (set-cdr! tail (read))
                 (let ((end-tok (%read-token port)))
                   (or (eq? end-tok close-paren)
                     (error "missing close paren" end-tok)))
+                (dec-nesting!)
                 (cdr head))
               ((eof-object? tok)
                 (error "unexpected <eof> reading list"))
@@ -80,23 +103,36 @@
                 (loop (cdr tail))))))))
 
     (define (read-vector)
+      (inc-nesting!)
       (let ((head (cons #f '())))
         (let loop
           ((tail head))
           (let ((tok (%read-token port)))
             (cond
-              ((eq? tok #\)) (list->vector (cdr head)))
-              ((eq? tok #\.) (error "unexpected '.' reading vector"))
-              ((eof-object? tok) (error "unexpected <eof> reading vector"))
+              ((eq? tok #\))
+                (dec-nesting!)
+                (list->vector (cdr head)))
+              ((eq? tok #\.)
+                (error "unexpected '.' reading vector"))
+              ((eof-object? tok)
+                (error "unexpected <eof> reading vector"))
               (else
                 (set-cdr! tail (cons (read-with-token tok) '()))
                 (loop (cdr tail))))))))
 
     (define (read-quote quot)
-      (let ((datum (core:read)))
+      (prompt-off!)
+      (let ((datum (read-datum)))
+        (prompt-on!)
         (if (eof-object? datum)
           (error "unexpected <eof> reading quoted form" quot)
           (list quot datum))))
+
+    (define (read-string tok)
+      (unread-char tok)
+      (let ((s (%read-string port)))
+        (prompt-on!)
+        s))
 
     (define (read-char-const)
       (let* ((id (%read-identifier-string port)))
@@ -137,9 +173,12 @@
       (error "unknown reader syntax" "|"))
 
     ; read-toplevel body
-    (read-with-token (%read-token port)))
+    (set-read-prompt! prompt)
+    (set! nesting 0)
+    (read-datum)
+    )
 
-  (define (optional-port args caller)
+  (define (optional-port args arg caller)
     (if (null? args)
       (current-input-port)
       (if (pair? (rest args))
@@ -147,11 +186,17 @@
         (let ((port (first args)))
           (if (input-port? port)
             port
-            (error "expects <input-port> at argument 1" caller))))))
+            (error
+              (string-append "expects <input-port> at " arg)
+              caller))))))
+
+  (set! core:read-with-prompt
+    (lambda (prompt . args)
+      (read-toplevel prompt (optional-port args "argument 2" "core:read-with-prompt"))))
 
   (set! core:read
     (lambda args
-      (read-toplevel (optional-port args "core:read"))))
+      (read-toplevel #f (optional-port args "argument 1" "core:read"))))
   )
 
 (set! read core:read)
