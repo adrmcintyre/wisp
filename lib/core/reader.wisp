@@ -18,18 +18,16 @@
 
   (define COMMA-AT (string->symbol ",@"))
 
-  (define original-string->keyword string->keyword)
-
-  (define (string->keyword s)
-    (let ((n (- (string-length s) 1)))
-      (if (eq? (string-ref s n) #\:)
-        (original-string->keyword (substring s 0 n))
+  (define (identifier->keyword id)
+    (let ((n (- (string-length id) 1)))
+      (if (eq? (string-ref id n) #\:)
+        (string->keyword (substring id 0 n))
         #f)))
 
   (define (identifier->object id)
     (or
       (string->number id)
-      (string->keyword id)
+      (identifier->keyword id)
       (string->symbol id)))
 
   (define (read-toplevel prompt port)
@@ -90,7 +88,7 @@
                 (dec-nesting!)
                 (cdr head))
               ((eq? tok #\.)
-                (set-cdr! tail (read))
+                (set-cdr! tail (read-datum))
                 (let ((end-tok (%read-token port)))
                   (or (eq? end-tok close-paren)
                     (error "missing close paren" end-tok)))
@@ -129,7 +127,7 @@
           (list quot datum))))
 
     (define (read-string tok)
-      (unread-char tok)
+      (unread-char tok port)
       (let ((s (%read-string port)))
         (prompt-on!)
         s))
@@ -137,7 +135,7 @@
     (define (read-char-const)
       (let* ((id (%read-identifier-string port)))
         (cond
-          ((not id) (read-char))
+          ((not id) (read-char port))
           ((eof-object? id) (error "unexpected <eof> in character constant"))
           ((= (string-length id) 1) (string-ref id 0))
           (else
@@ -149,7 +147,7 @@
     ; TODO - again we would profit from a vector dispatch table here,
     ; which would also open up custom reader hooks.
     (define (read-special)
-      (let ((ch (read-char)))
+      (let ((ch (read-char port)))
         (case ch
           ((#\t) #t)
           ((#\f) #f)
@@ -162,7 +160,7 @@
               (error "unknown reader syntax" (string #\# ch)))))))
 
     (define (read-special-number prefix)
-      (let ((suffix (%read-identifier-string)))
+      (let ((suffix (%read-identifier-string port)))
         (if (eof-object? suffix)
           (error "unexpected <eof> reading number"))
         (let ((s (string-append (string #\# prefix) suffix)))
