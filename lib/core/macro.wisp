@@ -5,9 +5,10 @@
     (define *env* (interaction-environment))
 
     (define (expand-expr expr)
-        (if (pair? expr)
-            (expand-pair (first expr) (rest expr))
-            expr))
+        (let ((qq-expr (core:quasiquote-expand expr)))
+            (if (pair? qq-expr)
+                (expand-pair (first qq-expr) (rest qq-expr))
+                qq-expr)))
 
     (define (expand-pair oper args)
         (let* ((argc (arg-count args))
@@ -22,7 +23,7 @@
 
     (define (expand-application x-oper args argc)
         (case x-oper
-            ((%lambda %macro) 
+            ((%lambda %macro)
                 (if (< argc 2)
                     (if (< argc 1)
                         (error "missing formals")
@@ -31,12 +32,12 @@
                       (body (rest args)))
                       (validate-formals formals)
                     (cons x-oper (cons formals (map expand-expr body)))))
-    
+
             ((quote)
                 (or (= argc 1)
                     (error "accepts 1 argument only"))
                 (cons x-oper args))
-    
+
             ((%define set!)
                 (or (= argc 2)
                     (error "accepts 2 arguments"))
@@ -45,23 +46,23 @@
                     (or (symbol? var)
                         (error "argument 1 is not a symbol"))
                     (list x-oper var (expand-expr value))))
-    
+
             ((if)
                 (or (= argc 2) (= argc 3)
                     (error "accepts 2 or 3 arguments"))
                 (cons x-oper (map expand-expr args)))
-    
+
             ((and or)
                 (cons x-oper (map expand-expr args)))
-    
+
             ((begin)
                 (if (= argc 1)
                     (expand-expr (first args))
                 (cons x-oper (map expand-expr args))))
-    
+
             (else
                 (cons x-oper (map expand-expr args)))))
-    
+
     (define (arg-count args)
         (let loop ((args args) (n 0))
             (cond
@@ -69,7 +70,7 @@
              ((pair? args) (loop (rest args) (+ n 1)))
              (else
                 (error "improper argument list")))))
-    
+
     ; Raises an error if <formals> is not valid as the formals list of a lambda
     ; expression. I.e. it must be in one of these forms:
     ;   ()
@@ -86,6 +87,6 @@
                 (validate-formals (rest formals)))
             (else
                 (error "rest-of-arguments formal is not a symbol"))))
-    
+
     (set! core:macro-expand expand-expr)
 )

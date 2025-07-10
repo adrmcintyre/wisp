@@ -4,9 +4,7 @@
 
 ; Uncomment to enable self-hosted macro-expansion
 ;
-(define *core:macro-expander*
-    (lambda (expr)
-        (core:macro-expand (core:quasiquote-expand expr))))
+(define *core:macro-expander* core:macro-expand)
 
 ; Evaluation require three phases:
 ;   macro expansion (including expansion of quasiquote expressions)
