@@ -262,7 +262,7 @@ CELL func_set_read_prompt(CELL frame) {
         internal_set_read_prompt(prompt);
         return V_VOID;
     }
-    return make_exception("expects #f, <string>, <integer> at argument 1");
+    return make_exception("expects #f, <string>, or <integer> at argument 1");
 }
 
 DECLARE_FUNC(
