@@ -18,17 +18,24 @@
 
   (define COMMA-AT (string->symbol ",@"))
 
-  (define (identifier->keyword id)
-    (let ((n (- (string-length id) 1)))
-      (if (eq? (string-ref id n) #\:)
-        (string->keyword (substring id 0 n))
+  (define (string-downcase s)
+    (list->string (map char-downcase (string->list s))))
+
+  (define (string-upcase s)
+    (list->string (map char-upcase (string->list s))))
+
+  (define (identifier->keyword ident)
+    (let ((n (- (string-length ident) 1)))
+      (if (eq? (string-ref ident n) #\:)
+        (string->keyword (substring ident 0 n))
         #f)))
 
-  (define (identifier->object id)
-    (or
-      (string->number id)
-      (identifier->keyword id)
-      (string->symbol id)))
+  (define (identifier->object ident)
+      (or
+        (string->number ident)
+        (let ((ident (string-downcase ident)))
+          (identifier->keyword ident)
+          (string->symbol ident))))
 
   (define (read-toplevel prompt port)
     (define nesting 0)
@@ -133,16 +140,16 @@
         s))
 
     (define (read-char-const)
-      (let* ((id (%read-identifier-string port)))
+      (let* ((ident (%read-identifier-string port)))
         (cond
-          ((not id) (read-char port))
-          ((eof-object? id) (error "unexpected <eof> in character constant"))
-          ((= (string-length id) 1) (string-ref id 0))
+          ((not ident) (read-char port))
+          ((eof-object? ident) (error "unexpected <eof> in character constant"))
+          ((= (string-length ident) 1) (string-ref ident 0))
           (else
-            (let ((lookup (assoc id CHAR-NAMES)))
+            (let ((lookup (assoc (string-downcase ident) CHAR-NAMES)))
               (if lookup
                 (cdr lookup)
-                (error "unknown character constant" id)))))))
+                (error "unknown character constant" ident)))))))
 
     ; TODO - again we would profit from a vector dispatch table here,
     ; which would also open up custom reader hooks.
