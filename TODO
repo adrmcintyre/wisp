@@ -1,3 +1,5 @@
+Implement letrec* and use it in the expansion of internal definitions.
+
 Protect symbols used by the core from effects of redefinition
 (e.g. redefining '+' in r4rstest.wisp breaks the reader).
 

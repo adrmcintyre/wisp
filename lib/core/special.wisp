@@ -1,7 +1,6 @@
 ;;
 ;; TODO:
 ;;   * explicit error checking
-;;   * expand internal defines inside macros?
 ;;
 ;; NOTE
 ;;   everything in here assumes none of the primitives employed
@@ -102,38 +101,47 @@
 ;   (letrec ((var val) ...)
 ;     exp1 exp2 ...))
 
+(let ()
+	(define (expand-internal-defines body defines)
+		(let loop ((body body) (defines defines))
+			(if (and
+						(pair? body)
+						(pair? (car body))
+						(eq? (caar body) 'define))
+				(loop
+					(cdr body)
+					(cons
+						(if (pair? (cadar body))
+							`(,(caadar body) (lambda ,(cdadar body) ,@(cddar body)))
+							(cdar body))
+						defines))
+				(cons (reverse defines) body))))
 
-(define (core:expand-internal-defines body defines)
-	(if (and
-			(pair? body)
-			(pair? (car body))
-			(eq? (caar body) 'define))
-		(core:expand-internal-defines
-			(cdr body)
-			(cons
-				(if (pair? (cadar body))
-					`(,(caadar body) (lambda ,(cdadar body) ,@(cddar body)))
-					(cdar body))
-				defines))
-		(cons (reverse defines) body)))
-		
-(define-macro (lambda formals . body)
-	(let1 (defines-body (core:expand-internal-defines body '()))
-		(if (null? (car defines-body))
-			`(%lambda ,formals ,@body)
-			`(%lambda ,formals (letrec ,@defines-body)))))
+	(set! lambda
+		(%macro (formals . body)
+			(let1 (defines-body (expand-internal-defines body '()))
+						(if (null? (car defines-body))
+							`(%lambda ,formals ,@body)
+							`(%lambda ,formals (letrec ,@defines-body))))))
+
+	(set! define-macro
+		(%macro (formals . body)
+			(let1 (defines-body (expand-internal-defines body '()))
+						(if (null? (car defines-body))
+							`(%define ,(car formals) (%macro ,(cdr formals) ,@body))
+							`(%define ,(car formals) (%macro ,(cdr formals) (letrec ,@defines-body)))))))
+)
 
 ;
 ; let*
 ;
-(define (core:expand-let-star bindings body)
-	(if (or
-			(null? bindings)
-			(null? (cdr bindings)))
-		`(core:simple-let ,bindings ,@body)
-		`(let1 ,(car bindings)
-			,(core:expand-let-star (cdr bindings) body))))
-
 (define-macro (let* bindings . body)
-	(core:expand-let-star bindings body))
+	(let loop ((bindings bindings))
+		(if (or
+					(null? bindings)
+					(null? (cdr bindings)))
+			`(core:simple-let ,bindings ,@body)
+			`(let1 ,(car bindings)
+						 ,(loop (cdr bindings))))))
+
 
