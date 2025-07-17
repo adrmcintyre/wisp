@@ -22,8 +22,9 @@
      (%resolve-path name *require-path*))))
 
 (require "core/special")
-(require "core/map")
 (require "core/control")
+(require "core/map")
+(require "core/do")
 (require "core/quasiquote")
 (require "core/macro")
 (require "core/compile")
