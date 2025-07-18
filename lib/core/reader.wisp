@@ -31,11 +31,11 @@
         #f)))
 
   (define (identifier->object ident)
-      (or
-        (string->number ident)
-        (let ((ident (string-downcase ident)))
-          (identifier->keyword ident)
-          (string->symbol ident))))
+    (or
+      (string->number ident)
+      (let ((ident (string-downcase ident)))
+        (or (identifier->keyword ident)
+          (string->symbol ident)))))
 
   (define (read-toplevel prompt port)
     (define nesting 0)
