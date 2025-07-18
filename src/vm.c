@@ -75,8 +75,8 @@ static CELL vm_pop_frame(CELL frame, INT want_argc, bool want_rest, INT given_ar
 }
 
 DECLARE_FUNC(
-    func_vm_run, 2, 2,
-    "%vm-run", "program:vector globals:vector",
+    func_vm_run, 3, 3,
+    "%vm-run", "pc:integer program:vector globals:vector",
     "Execute the virtual machine."
 )
 
@@ -84,73 +84,92 @@ DECLARE_FUNC(
 // with the exception of object literals, which could be stored
 // in a separate literal table.
 CELL func_vm_run(CELL frame) {
-    ASSERT_VECTORP(0);
+    ASSERT_INTP(0);
     ASSERT_VECTORP(1);
+    ASSERT_VECTORP(2);
     gc_root_5("vm_run", globals, frame, stack, env, value);
 
-    INT pc = 0;
-    globals = FV1;
+    INT pc = GET_INT(FV0);
+    globals = FV2;
     while (1) {
-        const CELL *const program = GET_VECTOR(FV0)->data;
+        printf("%lld: ", pc);
+        const CELL *const program = GET_VECTOR(FV1)->data;
+        if (pc < 0 || pc >= GET_VECTOR(FV1)->len) {
+            gc_unroot();
+            return make_exception("pc out of bounds");
+        }
         const CELL opcode = program[pc++];
         switch (GET_INT(opcode)) {
             case VM_BRANCH_IF_FALSE: {
                 const INT label = GET_INT(program[pc++]);
+                printf("if-false\n");
                 if (FALSEP(value)) pc = label;
                 break;
             }
             case VM_BRANCH: {
+                printf("branch\n");
                 const INT label = GET_INT(program[pc++]);
                 pc = label;
                 break;
             }
             case VM_LIT: {
+                printf("lit\n");
                 value = program[pc++];
                 break;
             }
             case VM_PUSH: {
+                printf("push\n");
                 vm_push(value);
                 break;
             }
             case VM_SET_GLOBAL: {
+                printf("set-global\n");
                 const INT glob = GET_INT(program[pc++]);
                 *vm_glob_lookup(glob) = value;
                 break;
             }
             case VM_GET_GLOBAL: {
+                printf("get-global\n");
                 const INT glob = GET_INT(program[pc++]);
                 value = *vm_glob_lookup(glob);
                 break;
             }
             case VM_SET_SLOT: {
+                printf("set-slot\n");
                 const INT slot = GET_INT(program[pc++]);
                 *vm_env_lookup(slot) = value;
                 break;
             }
             case VM_GET_SLOT: {
+                printf("get-slot\n");
                 const INT slot = GET_INT(program[pc++]);
                 value = *vm_env_lookup(slot);
                 break;
             }
             case VM_MAKE_CLOSURE: {
+                printf("make-closure\n");
                 const INT label = GET_INT(program[pc++]);
                 value = vm_make_closure(label);
                 break;
             }
             case VM_RETURN: {
+                printf("return\n");
                 env = vm_pop();
                 pc = GET_INT(vm_pop());
                 break;
             }
             case VM_VOID: {
+                printf("void\n");
                 value = V_VOID;
                 break;
             }
             case VM_HALT: {
+                printf("halt\n");
                 gc_unroot();
                 return value;
             }
             case VM_CALL: {
+                printf("call\n");
                 const INT argc = GET_INT(program[pc++]);
 
                 if (FUNCP(value)) {
@@ -193,7 +212,7 @@ CELL func_vm_run(CELL frame) {
                         return result;
                     }
                     value = result;
-                } else {
+                } else if (CONSP(value)) {
                     const INT closure_label = GET_INT(CAR(value));
                     const INT lambda_argc = GET_INT(program[closure_label - 2]);
                     const bool lambda_rest = TRUEP(program[closure_label - 1]);
@@ -219,6 +238,12 @@ CELL func_vm_run(CELL frame) {
                     gc_unroot();
                     env = new_env;
                     pc = closure_label;
+                } else if (CLOSUREP(value)) {
+                    gc_unroot();
+                    return make_exception("cannot call interpreter closure");
+                } else if (UNDEFINEDP(value)) {
+                    gc_unroot();
+                    return make_exception("cannot call undefined value");
                 }
                 break;
             }

@@ -96,6 +96,11 @@
 ; Extract the initial memory state
 (define *cc:global-mem* (cdr (assoc 'mem cc:r5rs-env+mem)))
 
+(define *cc:global-index* (vector-length *cc:global-mem*))
+
+(define *global-pc* 0)
+(define *global-prog* #())
+
 ; (cc:make-linkage <code> ...)
 ; Returns a new linkage containing the supplied code, and no procs.
 (define (cc:make-linkage . code)
@@ -253,11 +258,11 @@
       (string->symbol (string-append "L" (number->string label))))))
 
 
-; (cc:if2 <test> <true-branch> <env>)
+; (cc:if2 <test:expr> <true-branch:expr> <env>)
 ; Returns a linkage that will evaluate <test>, and if true evaluate
 ; <true-branch> leaving the result in the value register. If false,
 ; the value register will contain the void value.
-(define (cc:if2 <test:expr> <true-branch:expr> env)
+(define (cc:if2 test true-branch env)
   (let ((else-label (cc:gen-label))
         (endif-label (cc:gen-label)))
     (cc:join-linkages
@@ -347,15 +352,16 @@
 ; first if necessary.
 ; TODO - verify return values etc
 (define cc:get-global-offset
-  (let ((index 0))
     (lambda (var)
       (cond
         ((assoc var *cc:global-env*) => (lambda (v) (list (cdr v) (car v))))
         (else
-          (set! index (+ index 1))
-          (let ((offset (list index var)))
-            (set! *cc:global-env* (cons (cons var offset) *cc:global-env*))
-            offset))))))
+          (let ((index *cc:global-index*))
+            (set! *cc:global-env* (cons (cons var index) *cc:global-env*))
+            ; horrendously inefficient!
+            (set! *cc:global-mem* (list->vector (append (vector->list *cc:global-mem*) (list (undefined)))))
+            (set! *cc:global-index* (+ *cc:global-index* 1))
+            (list index var))))))
 
 ; (cc:env-get <var:symbol> <env>)
 ; Returns a linkage that will get the current value of <var> from the local
@@ -392,14 +398,16 @@
                         (else (error "bad args"))))
                 args))))
 
-; (cc:assemble <linkage>)
-; Returns the assembled form of <linkage> as a vector of integer bytecodes and
-; literal values.
-(define (cc:assemble linkage)
+; (cc:assemble <pc> <linkage>)
+; Returns a two element list.
+; The first element is the final pc.
+; The second element is the assembled form of <linkage> as a vector of integer
+; bytecodes and literal values.
+(define (cc:assemble pc linkage)
   (let* ((code (append (cc:linkage-code linkage)
                        (cc:linkage-procs linkage)))
-         (labels (cc:compute-labels code 0 '())))
-    (cc:assembly->program code labels)))
+         (pc+labels (cc:compute-labels code pc '())))
+    (list (first pc+labels) (cc:assembly->program code (second pc+labels)))))
 
 ; (cc:compute-labels <code:instruction-list> <pc:integer> <labels:assoc-list>)
 ; Returns an augmented list of <labels. Iterates <code> maintaining the program
@@ -407,7 +415,7 @@
 ; The <labels> assoc-list is extended with new entries associating each label
 ; with its corresponding program counter value.
 (define (cc:compute-labels code pc labels)
-  (if (null? code) labels
+  (if (null? code) (list pc labels)
     (let* ((instruction (first code))
            (opcode (first instruction)))
       (cc:compute-labels
@@ -616,11 +624,20 @@
           (newline)
           (loop))))))
 
+(define (vector-append . vecs)
+  (list->vector (append-map vector->list vecs)))
+
 ; (vm-run <expr>)
 ; Compiles <expr>, executes it in the virtual machine, and returns the result.
 (define-macro (vm-run expr)
-  `(let ((linkage (cc:prog ',(%macro-expand expr) '())))
-     (%vm-run (cc:assemble linkage) *cc:global-mem*)))
+  `(let*
+     ((linkage (cc:prog ',(core:macro-expand expr) '()))
+       (current-pc *global-pc*)
+       (pc+prog (cc:assemble current-pc linkage))
+       (combined-prog (vector-append *global-prog* (second pc+prog))))
+     (set! *global-prog* combined-prog)
+     (set! *global-pc* (first pc+prog))
+     (%vm-run current-pc *global-prog* *cc:global-mem*)))
 
 ; Debugging
 
@@ -642,7 +659,7 @@
 ; Compiles <expr> and displays annotated bytecode.
 (define-macro (disass expr)
   `(let* ((linkage (cc:prog ',(%macro-expand expr) '()))
-          (prog (cc:assemble linkage))
+          (pc+prog (cc:assemble pc linkage))
           (prog-len (vector-length prog)))
      (let loop ((pc 0))
         (if (< pc prog-len)
@@ -666,11 +683,11 @@
 ; Compiles <expr> and displays raw bytecode.
 (define-macro (cc expr)
   `(let ((linkage (cc:prog ',(%macro-expand expr) '())))
-     (cc:display-list (vector->list (cc:assemble linkage)))))
+     (cc:display-list (vector->list (cc:assemble pc linkage)))))
 
 ; (simulate <expr>)
 ; Compiles <expr> and runs it in the simulator.
 (define-macro (simulate expr)
   `(let ((linkage (cc:prog ',(%macro-expand expr) '())))
-     (cc:simulate (cc:assemble linkage) *cc:global-mem*)))
+     (cc:simulate (cc:assemble pc linkage) *cc:global-mem*)))
 
