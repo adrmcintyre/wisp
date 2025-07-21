@@ -203,22 +203,26 @@ CELL func_vm_run(CELL frame) {
                     const INT func_index = GET_INT(func->func_index);
                     const FUNC_ENTRY func_entry = func_entries[func_index];
 
-                    CELL func_frame;
+                    CELL result;
                     if (argc <= reusable_frame_max_argc) {
-                        func_frame = reusable_frame;
-                        GET_ENV(func_frame)->count = make_int(argc);
+                        GET_ENV(reusable_frame)->count = make_int(argc);
+                        vm_pop_frame(reusable_frame, argc, 0, argc);
+                        // usually l_receive_args_for_func_direct
+                        // LABEL direct_receiver = label_info[(LABEL)GET_INT(func->receiver)].direct;
+                        // JUMP(direct_receiver);
+                        result = (*func_entry)(reusable_frame);
+                        GET_ENV(reusable_frame)->count = make_int(0);
                     } else {
-                        func_frame = make_env(argc, V_NULL);
+                        CELL func_frame = make_env(argc, V_NULL);
+                        gc_root_1("VM_CALL #<primitive>", func_frame);
+                        vm_pop_frame(func_frame, argc, 0, argc);
+                        // usually l_receive_args_for_func_direct
+                        // LABEL direct_receiver = label_info[(LABEL)GET_INT(func->receiver)].direct;
+                        // JUMP(direct_receiver);
+                        result = (*func_entry)(func_frame);
+                        gc_unroot();
                     }
-                    gc_root_1("VM_CALL #<primitive>", func_frame);
-                    vm_pop_frame(func_frame, argc, 0, argc);
-                    gc_unroot();
 
-                    // usually l_receive_args_for_func_direct
-                    // LABEL direct_receiver = label_info[(LABEL)GET_INT(func->receiver)].direct;
-                    // JUMP(direct_receiver);
-
-                    const CELL result = (*func_entry)(func_frame);
                     if (EXCEPTIONP(result)) {
                         EXCEPTION *exn = GET_EXCEPTION(result);
                         if (FALSEP(exn->source_str)) {
