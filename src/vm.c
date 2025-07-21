@@ -20,7 +20,12 @@ static const int VM_MAKE_CLOSURE = 8;
 static const int VM_RETURN = 9;
 static const int VM_VOID = 10;
 static const int VM_HALT = 11;
-static const int VM_CALL = 12;
+static const int VM_CALL_0 = 12;
+static const int VM_CALL_1 = 13;
+static const int VM_CALL_2 = 14;
+static const int VM_CALL_3 = 15;
+static const int VM_CALL_4 = 16;
+static const int VM_CALL_N = 17;
 
 static CELL stack = V_NULL;
 static CELL env = V_NULL;
@@ -87,90 +92,99 @@ CELL func_vm_run(CELL frame) {
     ASSERT_INTP(0);
     ASSERT_VECTORP(1);
     ASSERT_VECTORP(2);
-    gc_root_5("vm_run", globals, frame, stack, env, value);
+
+    const int reusable_frame_max_argc = 64;
+    CELL reusable_frame = make_env(reusable_frame_max_argc, V_NULL);
+
+    gc_root_6("vm_run", globals, frame, stack, env, value, reusable_frame);
 
     INT pc = GET_INT(FV0);
     globals = FV2;
     while (1) {
-        printf("%lld: ", pc);
+        //printf("%lld: ", pc);
         const CELL *const program = GET_VECTOR(FV1)->data;
         if (pc < 0 || pc >= GET_VECTOR(FV1)->len) {
             gc_unroot();
             return make_exception("pc out of bounds");
         }
-        const CELL opcode = program[pc++];
-        switch (GET_INT(opcode)) {
+        const INT opcode = GET_INT(program[pc++]);
+        switch (opcode) {
             case VM_BRANCH_IF_FALSE: {
                 const INT label = GET_INT(program[pc++]);
-                printf("if-false\n");
+                //printf("if-false %lld\n", label);
                 if (FALSEP(value)) pc = label;
                 break;
             }
             case VM_BRANCH: {
-                printf("branch\n");
                 const INT label = GET_INT(program[pc++]);
+                //printf("branch %lld\n", label);
                 pc = label;
                 break;
             }
             case VM_LIT: {
-                printf("lit\n");
                 value = program[pc++];
+                //printf("lit 0x%08llx\n", value.as_bits);
                 break;
             }
             case VM_PUSH: {
-                printf("push\n");
+                //printf("push\n");
                 vm_push(value);
                 break;
             }
             case VM_SET_GLOBAL: {
-                printf("set-global\n");
                 const INT glob = GET_INT(program[pc++]);
+                //printf("set-global %lld\n", glob);
                 *vm_glob_lookup(glob) = value;
                 break;
             }
             case VM_GET_GLOBAL: {
-                printf("get-global\n");
                 const INT glob = GET_INT(program[pc++]);
+                //printf("get-global %lld\n", glob);
                 value = *vm_glob_lookup(glob);
                 break;
             }
             case VM_SET_SLOT: {
-                printf("set-slot\n");
                 const INT slot = GET_INT(program[pc++]);
+                //printf("set-slot %lld\n", slot);
                 *vm_env_lookup(slot) = value;
                 break;
             }
             case VM_GET_SLOT: {
-                printf("get-slot\n");
                 const INT slot = GET_INT(program[pc++]);
+                //printf("get-slot %lld\n", slot);
                 value = *vm_env_lookup(slot);
                 break;
             }
             case VM_MAKE_CLOSURE: {
-                printf("make-closure\n");
                 const INT label = GET_INT(program[pc++]);
+                //printf("make-closure %lld\n", label);
                 value = vm_make_closure(label);
                 break;
             }
             case VM_RETURN: {
-                printf("return\n");
+                //printf("return\n");
                 env = vm_pop();
                 pc = GET_INT(vm_pop());
                 break;
             }
             case VM_VOID: {
-                printf("void\n");
+                //printf("void\n");
                 value = V_VOID;
                 break;
             }
             case VM_HALT: {
-                printf("halt\n");
+                //printf("halt\n");
                 gc_unroot();
                 return value;
             }
-            case VM_CALL: {
-                printf("call\n");
-                const INT argc = GET_INT(program[pc++]);
+            case VM_CALL_0:
+            case VM_CALL_1:
+            case VM_CALL_2:
+            case VM_CALL_3:
+            case VM_CALL_4:
+            case VM_CALL_N: {
+                const INT argc = (opcode < VM_CALL_N) ? (opcode-VM_CALL_0) : GET_INT(program[pc++]);
+                //printf("call%lld\n", argc);
 
                 if (FUNCP(value)) {
                     const FUNC *func = GET_FUNC(value);
@@ -189,11 +203,13 @@ CELL func_vm_run(CELL frame) {
                     const INT func_index = GET_INT(func->func_index);
                     const FUNC_ENTRY func_entry = func_entries[func_index];
 
-                    // this consumes heap on every function invocation
-                    //
-                    // TODO - no reason we couldn't statically allocate func_frame with say 16
-                    //        slots (whatever the max arg count is for primitives) and re-use it.
-                    CELL func_frame = make_env(argc, V_NULL);
+                    CELL func_frame;
+                    if (argc <= reusable_frame_max_argc) {
+                        func_frame = reusable_frame;
+                        GET_ENV(func_frame)->count = make_int(argc);
+                    } else {
+                        func_frame = make_env(argc, V_NULL);
+                    }
                     gc_root_1("VM_CALL #<primitive>", func_frame);
                     vm_pop_frame(func_frame, argc, 0, argc);
                     gc_unroot();

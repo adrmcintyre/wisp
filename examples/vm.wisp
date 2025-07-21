@@ -6,7 +6,7 @@
 ;   (branch LABEL)				-- pc = LABEL
 ;   (lit VALUE)					-- value = VALUE
 ;   (push)                      -- push VALUE to stack
-;   (call ARG-COUNT)
+;   (call-n ARG-COUNT)
 ;       -- call function in value with ARG-COUNT args from the stack
 ;       -- if value contains a builtin,
 ;       --   pop the args into a frame,
@@ -61,6 +61,9 @@
         (cons (car syms) mem)))))
 
 ; Calculate the core r5rs environment
+; TODO - we can instead interrogate interned-symbols...
+; we should run (a version of) vm-define against all of
+; the compiled-lambdas.
 (define cc:r5rs-env+mem
   (cc:build-env+mem
     gc-info gc-check gc booleans->integer list->integer integer->list reverse-bit-field
@@ -83,8 +86,10 @@
     %record-ref %record %make-record record? vector-set! vector-ref vector-length vector
     make-vector vector? string->number number->string / * - + > >= = <= < max min expt atan sqrt
     acos asin tan cos sin log exp round truncate ceiling floor modulo remainder quotient abs even?
-    odd? positive? negative? zero? inexact? exact? integer? rational? real? complex? number? assoc
-    assv assq member memv memq list-ref list-tail reverse append length list list? null? set-cdr!
+    odd? positive? negative? zero? inexact? exact? integer? rational? real? complex? number?
+    inexact->exact exact->inexact
+    assoc assv assq member memv memq
+    list-ref list-tail reverse append length list list? null? set-cdr!
     set-car! cddddr cdddar cddadr cddaar cdaddr cdadar cdaadr cdaaar cadddr caddar cadadr cadaar
     caaddr caadar caaadr caaaar third cdddr cddar cdadr cdaar caddr cadar caadr caaar second cddr
     cdar cadr caar rest first cdr car cons pair? unquote-splicing unquote quasiquote
@@ -232,11 +237,19 @@
 ; the procedure with the evaluated arguments, leaving the result in the value
 ; register.
 (define (cc:application func args env)
-  (cc:join-linkages
-    (cc:evaluate-args args env)
-    (cc:evaluate func env)
-    (cc:make-linkage
-      `(call ,(length args)))))
+  (let ((argc (length args)))
+    (cc:join-linkages
+      (cc:evaluate-args args env)
+      (cc:evaluate func env)
+      (cc:make-linkage
+        (case argc
+          ((0) `(call-0))
+          ((1) `(call-1))
+          ((2) `(call-2))
+          ((3) `(call-3))
+          ((4) `(call-4))
+          (else
+            `(call-n ,argc)))))))
 
 ; (cc:evaluate-args <args:expr-list> <env>)
 ; Returns a linkage that will evaluate <args> leaving the results on the stack,
@@ -438,7 +451,12 @@
 (define cc:vm-return           9)
 (define cc:vm-void            10)
 (define cc:vm-halt            11)
-(define cc:vm-call            12)
+(define cc:vm-call-0          12)
+(define cc:vm-call-1          13)
+(define cc:vm-call-2          14)
+(define cc:vm-call-3          15)
+(define cc:vm-call-4          16)
+(define cc:vm-call-n          17)
 
 ; An assoc-list mapping each instruction name to (<opcode> <length>).
 ; If <opcode> is #f it indicates that there is no corresponding opcode.
@@ -455,7 +473,12 @@
     (return          ,cc:vm-return          1)
     (void            ,cc:vm-void            1)
     (halt            ,cc:vm-halt            1)
-    (call            ,cc:vm-call            2)
+    (call-0          ,cc:vm-call-0          1)
+    (call-1          ,cc:vm-call-1          1)
+    (call-2          ,cc:vm-call-2          1)
+    (call-3          ,cc:vm-call-3          1)
+    (call-4          ,cc:vm-call-4          1)
+    (call-n          ,cc:vm-call-n          2)
     (label           #f                     0)
     (template        #f                     2)))
 
@@ -495,7 +518,7 @@
                    (cons (cdr (assoc (second instruction) labels))
                          (loop (rest code)))))
 
-            ((lit call set-global get-global)
+            ((lit call-n set-global get-global)
              (cons bytecode
                    (cons (second instruction)
                          (loop (rest code)))))
@@ -511,9 +534,8 @@
 
 ; (cc:simulate <prog:bytecode-vector> <mem:obj-vector>)
 ; Returns the content of the value register after simulating <prog>.
-(define (cc:simulate prog mem)
+(define (cc:simulate pc prog mem)
   (define value #f)
-  (define pc 0)
   (define stack '())
   (define env '())
   (define tpl #())
@@ -522,9 +544,9 @@
 
   (define (prog-fetch)
     (let ((v (prog-ref pc)))
-        (display " ") (display v)
-        (set! pc (+ pc 1))
-        v))
+      (display " ") (display v)
+      (set! pc (+ pc 1))
+      v))
 
   (define (stack-push v)
     (set! stack (cons v stack)))
@@ -537,9 +559,9 @@
   (define (stack-pop-frame n)
     (let loop ((n n) (result '()))
       (if (zero? n) result
-        (loop
-          (- n 1)
-          (cons (stack-pop) result)))))
+                    (loop
+                      (- n 1)
+                      (cons (stack-pop) result)))))
 
   (define (get-env depth offset)
     (let loop ((env env) (depth depth))
@@ -553,17 +575,50 @@
         (vector-set! (first env) offset v)
         (loop (rest env) (- depth 1)))))
 
+  ;; call function in value, with ARG-COUNT args from stack
+  ;; if value contains a builtin, copy the args into a frame, call it, and leave the result in value
+  ;; if value contains a closure, copy the args into a frame
+  (define (call argc)
+    (let ((frame (stack-pop-frame argc)))
+      (if (and (pair? value)
+            (eq? (car value) closure:))
+        (begin
+          (stack-push pc)
+          (stack-push env)
+          (let* ((closure-pc (second value))
+                  (closure-env (third value))
+                  (want-argc (prog-ref (- closure-pc 2)))
+                  (want-argv (prog-ref (- closure-pc 1))))
+            (display " want-argc:") (display want-argc)
+            (display " want-argv:") (display want-argv)
+            (newline)
+            (set! pc closure-pc)
+            (set! env (cons
+                        (cond
+                          (want-argv
+                            (if (< argc want-argc)
+                              (return-with-value
+                                `(exception: "wanted at least " ,want-argc " args, but received " ,argc))
+                              (list->vector (append (take frame want-argc) (list (drop frame want-argc))))))
+                          (else
+                            (if (= argc want-argc)
+                              (list->vector frame)
+                              (return-with-value
+                                `(exception: "wanted " ,want-argc " args, but received " ,argc)))))
+                        closure-env))))
+        (set! value (apply value frame)))))
+
   (call/cc
     (lambda (return-with-value)
       (let loop ()
         (display "[" ) (display pc) (display "]")
         (let ((instruction (prog-fetch)))
           (let* ((name (symbol->string (first (list-ref cc:opcode-metadata instruction))))
-                (name-len (string-length name)))
-              (display " ")
-              (display name)
-              (let lp ((pos name-len))
-                (if (< pos 12) (begin (display " ") (lp (+ pos 1))))))
+                  (name-len (string-length name)))
+            (display " ")
+            (display name)
+            (let lp ((pos name-len))
+              (if (< pos 12) (begin (display " ") (lp (+ pos 1))))))
           (cond
             ((eq? instruction cc:vm-branch-false)     (let ((label (prog-fetch))) (if (not value) (set! pc label))))
             ((eq? instruction cc:vm-branch)           (set! pc (prog-fetch)))
@@ -582,42 +637,12 @@
             ((eq? instruction cc:vm-return)           (set! env (stack-pop)) (set! pc (stack-pop)))
             ((eq? instruction cc:vm-void)             (set! value (void)))
             ((eq? instruction cc:vm-halt)             (return-with-value `(result: ,value)))
-
-            ;; call function in value, with ARG-COUNT args from stack
-            ;; if value contains a builtin, copy the args into a frame, call it, and leave the result in value
-            ;; if value contains a closure, copy the args into a frame
-            ((eq? instruction cc:vm-call)
-             (let* ((argc (prog-fetch))
-                    (frame (stack-pop-frame argc)))
-
-               (if (and (pair? value)
-                        (eq? (car value) closure:))
-                (begin
-                  (stack-push pc)
-                  (stack-push env)
-                  (let* ((closure-pc (second value))
-                         (closure-env (third value))
-                         (want-argc (prog-ref (- closure-pc 2)))
-                         (want-argv (prog-ref (- closure-pc 1))))
-                    (display " want-argc:") (display want-argc)
-                    (display " want-argv:") (display want-argv)
-                    (newline)
-                    (set! pc closure-pc)
-                    (set! env (cons
-                                (cond
-                                  (want-argv
-                                    (if (< argc want-argc)
-                                      (return-with-value
-                                        `(exception: "wanted at least " ,want-argc " args, but received " ,argc))
-                                      (list->vector (append (take frame want-argc) (list (drop frame want-argc))))))
-                                  (else
-                                    (if (= argc want-argc)
-                                      (list->vector frame)
-                                      (return-with-value
-                                        `(exception: "wanted " ,want-argc " args, but received " ,argc)))))
-                                closure-env))))
-                (set! value (apply value frame)))))
-
+            ((eq? instruction cc:vm-call-0)           (call 0))
+            ((eq? instruction cc:vm-call-1)           (call 1))
+            ((eq? instruction cc:vm-call-2)           (call 2))
+            ((eq? instruction cc:vm-call-3)           (call 3))
+            ((eq? instruction cc:vm-call-4)           (call 4))
+            ((eq? instruction cc:vm-call-n)           (call (prog-fetch)))
             (else
               (return-with-value `(exception: "unknown-instruction" ,instruction))))
 
@@ -659,8 +684,9 @@
 ; Compiles <expr> and displays annotated bytecode.
 (define-macro (disass expr)
   `(let* ((linkage (cc:prog ',(%macro-expand expr) '()))
-          (pc+prog (cc:assemble pc linkage))
-          (prog-len (vector-length prog)))
+           (pc+prog (cc:assemble 0 linkage))
+           (prog (second pc+prog))
+           (prog-len (vector-length prog)))
      (let loop ((pc 0))
         (if (< pc prog-len)
           (let* ((opcode (vector-ref prog pc))
@@ -689,5 +715,6 @@
 ; Compiles <expr> and runs it in the simulator.
 (define-macro (simulate expr)
   `(let ((linkage (cc:prog ',(%macro-expand expr) '())))
-     (cc:simulate (cc:assemble pc linkage) *cc:global-mem*)))
+     (let ((pc+prog (cc:assemble 0 linkage)))
+       (cc:simulate 0 (second pc+prog) *cc:global-mem*))))
 

@@ -1,8 +1,8 @@
-(define-macro (when test true-body . rest)
-  `(if ,test (begin ,true-body ,@rest)))
-
-(define-macro (unless test false-body . rest)
-  `(if ,test (void) (begin ,false-body ,@rest)))
+;(define-macro (when test true-body . rest)
+;  `(if ,test (begin ,true-body ,@rest)))
+;
+;(define-macro (unless test false-body . rest)
+;  `(if ,test (void) (begin ,false-body ,@rest)))
 
 (define exact inexact->exact)
 (define inexact exact->inexact)

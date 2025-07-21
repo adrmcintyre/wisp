@@ -15,6 +15,15 @@
 ;(vm-define (file-exists? path) (vector? (file-stat path)))
 (vm-define (delete-file path) (void))
 
+;(vm-define write primitive-write)
+;(vm-define display primitive-display)
+(vm-define (call-with-output-file path proc)
+  (let* ((port (open-output-file path))
+          (res (proc port)))
+    (close-output-port port)
+    res))
+(vm-define (delete-file file) #f)
+(vm-define (file-exists? file) #f)
 ;-----------------------------------------------
 
 (vm-define (make-point x y z)

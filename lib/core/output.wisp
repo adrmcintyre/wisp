@@ -94,5 +94,8 @@
       (output-toplevel obj %display-atom (optional-port opt 'display))))
 )
 
-(define display core:display)
-(define write core:write)
+;(define primitive:display display)
+;(define primitive:write write)
+
+;(define display core:display)
+;(define write core:write)
