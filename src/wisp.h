@@ -161,6 +161,19 @@ typedef struct struct_db_result {
     void *handle;
 } DB_RESULT;
 
+typedef struct struct_vm_closure {
+    CELL tag;
+    CELL vm_label;
+    CELL vm_env;
+} VM_CLOSURE;
+
+typedef struct struct_vm_continuation {
+    CELL tag;
+    CELL vm_pc;
+    CELL vm_env;
+    CELL vm_stack;
+} VM_CONTINUATION;
+
 union union_object {
     CELL tag;
 
@@ -182,6 +195,8 @@ union union_object {
     VECTOR v_vector;
     RECORD v_record;
     VALUES v_values;
+    VM_CLOSURE v_vm_closure;
+    VM_CONTINUATION v_vm_continuation;
 
     // resources
     GENERIC_RESOURCE v_generic_resource;
@@ -323,9 +338,12 @@ static const TYPEID T_KEYWORD = 0x26;
 static const TYPEID T_VECTOR = 0x27;
 static const TYPEID T_RECORD = 0x28;
 static const TYPEID T_VALUES = 0x29;
-static const TYPEID T_PORT = 0x2a;
-static const TYPEID T_DB_CONNECTION = 0x2b;
-static const TYPEID T_DB_RESULT = 0x2c;
+static const TYPEID T_VM_CLOSURE = 0x2a;        // TODO - swap with T_REIFIED_CONTINUATION?
+static const TYPEID T_VM_CONTINUATION = 0x2b;
+
+static const TYPEID T_PORT = 0x2c;
+static const TYPEID T_DB_CONNECTION = 0x2d;
+static const TYPEID T_DB_RESULT = 0x2e;
 
 static const uint64_t NULL_BITS = 0x0000000000000000;
 static const uint64_t EMPTY_BITS = (uint64_t) T_EMPTY << 45;
@@ -420,6 +438,8 @@ static inline bool KEYWORDP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_KEYWORD
 static inline bool VECTORP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_VECTOR); }
 static inline bool RECORDP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_RECORD); }
 static inline bool VALUESP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_VALUES); }
+static inline bool VM_CLOSUREP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_VM_CLOSURE); }
+static inline bool VM_CONTINUATIONP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_VM_CONTINUATION); }
 static inline bool PORTP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_PORT); }
 static inline bool DB_CONNECTIONP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_DB_CONNECTION); }
 static inline bool DB_RESULTP(CELL cell) { return HAS_INDIRECT_TAG(cell, T_DB_RESULT); }
@@ -520,6 +540,8 @@ static inline KEYWORD *GET_KEYWORD(CELL cell) { return &cell.as_object->v_keywor
 static inline VECTOR *GET_VECTOR(CELL cell) { return &cell.as_object->v_vector; }
 static inline RECORD *GET_RECORD(CELL cell) { return &cell.as_object->v_record; }
 static inline VALUES *GET_VALUES(CELL cell) { return &cell.as_object->v_values; }
+static inline VM_CLOSURE *GET_VM_CLOSURE(CELL cell) { return &cell.as_object->v_vm_closure; }
+static inline VM_CONTINUATION *GET_VM_CONTINUATION(CELL cell) { return &cell.as_object->v_vm_continuation; }
 static inline GENERIC_RESOURCE *GET_GENERIC_RESOURCE(CELL cell) { return &cell.as_object->v_generic_resource; }
 static inline PORT *GET_PORT(CELL cell) { return &cell.as_object->v_port; }
 static inline DB_CONNECTION *GET_DB_CONNECTION(CELL cell) { return &cell.as_object->v_db_connection; }
@@ -735,6 +757,10 @@ extern CELL make_record(INT len);
 extern CELL make_record_uninited(INT len);
 
 extern CELL make_values(INT len, CELL values_list);
+
+extern CELL make_vm_closure(INT label, CELL env);
+
+extern CELL make_vm_continuation(INT pc, CELL env, CELL stack);
 
 // make_generic_resource?
 extern CELL make_port(char mode, FILE *fp, CELL path);

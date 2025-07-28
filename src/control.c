@@ -30,13 +30,13 @@ CELL func_funcp(CELL frame) {
 }
 
 DECLARE_FUNC(
-    func_help, 1, 1,
+    func_func_help, 1, 1,
     "%func-help", "func",
     "Returns a 3 element list containing the name, argument help text,"
     " and body help text for <func>."
 )
 
-CELL func_help(CELL frame) {
+CELL func_func_help(CELL frame) {
     ASSERT_FUNCP(0);
     const FUNC *p = GET_FUNC(FV0);
     gc_check_headroom();
@@ -44,10 +44,50 @@ CELL func_help(CELL frame) {
     return unsafe_make_list_3(p->name_str, p->help_args_str, p->help_body_str);
 }
 
+DECLARE_FUNC(
+    func_func_min_arity, 1, 1,
+    "%func-min-arity", "func",
+    "Returns the minimum arity of <func>."
+)
+
+CELL func_func_min_arity(CELL frame) {
+    ASSERT_FUNCP(0);
+    const FUNC *p = GET_FUNC(FV0);
+    return p->min_args;
+}
+
+DECLARE_FUNC(
+    func_func_max_arity, 1, 1,
+    "%func-max-arity", "func",
+    "Returns the maximum arity of <func>, or #f if an unlimited number of"
+    " arguments is allowed."
+)
+
+CELL func_func_max_arity(CELL frame) {
+    ASSERT_FUNCP(0);
+    const FUNC *p = GET_FUNC(FV0);
+    return p->max_args;
+}
+
+DECLARE_FUNC(
+    func_func_index, 1, 1,
+    "%func-index", "func",
+    "Returns the internal index of <func>."
+)
+
+CELL func_func_index(CELL frame) {
+    ASSERT_FUNCP(0);
+    const FUNC *p = GET_FUNC(FV0);
+    return p->func_index;
+}
+
 void control_register_symbols() {
     register_func(&meta_func_procedurep);
     register_func(&meta_func_funcp);
-    register_func(&meta_func_help);
+    register_func(&meta_func_func_help);
+    register_func(&meta_func_func_min_arity);
+    register_func(&meta_func_func_max_arity);
+    register_func(&meta_func_func_index);
 
     // FIXME - still to implement (!)
     // force, delay, values, call-with-values, dynamic-wind

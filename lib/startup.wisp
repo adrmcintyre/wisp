@@ -23,6 +23,7 @@
 
 (require "core/special")
 (require "core/control")
+(require "core/values")
 (require "core/map")
 (require "core/do")
 (require "core/quasiquote")

@@ -3,6 +3,7 @@
 ;   (label LABEL)				-- declare LABEL
 ;   (template ARGC ARGV)        -- declare a closure taking ARGC arguments, and wanting "rest" args if ARGV is #t
 ;   (branch-false LABEL)        -- if !value then pc = LABEL
+;   (branch-true LABEL)         -- if value then pc = LABEL
 ;   (branch LABEL)				-- pc = LABEL
 ;   (lit VALUE)					-- value = VALUE
 ;   (push)                      -- push VALUE to stack
@@ -32,6 +33,62 @@
 
 (require "srfi/1")
 
+; r5rs (wisp builtins)
+(define cc:r5rs-builtin
+  '(
+     eqv? eq? equal?
+     number? complex? real? rational? integer? exact? inexact?
+     = < <= > >= zero? positive? negative? odd? even? max min
+     + - * / abs quotient remainder modulo floor ceiling truncate round
+     exp log sin cos tan asin acos atan sqrt expt
+     exact->inexact inexact->exact
+     number->string string->number
+     not boolean?
+     pair? list? null? cons car cdr set-car! set-cdr! list length
+     append reverse list-tail list-ref memq memv member assq assv assoc
+     symbol? symbol->string string->symbol
+     char? char=? char<? char<=? char>? char>=? char-ci=? char-ci<? char-ci<=? char-ci>? char-ci>=? char-alphabetic? char-numeric? char-whitespace? char-upper-case? char-lower-case? char->integer integer->char char-upcase char-downcase
+     string? make-string string string-length string-ref string-set! string=? string<? string<=? string>? string>=? string-ci=? string-ci<? string-ci<=? string-ci>? string-ci>=? substring string-append string->list list->string string-copy string-fill!
+     vector? make-vector vector vector-length vector-ref vector-set! vector->list list->vector vector-fill!
+     procedure? apply values call-with-values scheme-report-environment null-environment interaction-environment
+     input-port? output-port? current-input-port current-output-port open-input-file open-output-file close-input-port close-output-port
+     read-char peek-char eof-object? char-ready?
+     newline write-char
+     %call/cc
+
+     %values->list  ;; not r5rs!
+     ))
+
+; r5rs (wisp library funcs) (TODO)
+(define cc:r5rs-library
+  '(
+     gcd lcm
+     map for-each force call-with-current-continuation dynamic-wind
+     eval
+     call-with-input-file call-with-output-file with-input-from-file with-output-to-file
+     read
+     load
+     write display
+     ))
+
+; r5rs - unsupported (TODO?)
+(define cc:r5rs-unsupported
+  '(
+     numerator denominator rationalize
+     make-rectangular make-polar real-part imag-part magnitude angle
+     port?
+     transcript-on transcript-off
+     ))
+
+(define cc:srfi-60-builtin
+  '(
+     bitwise-and logand bitwise-ior logior bitwise-xor logxor bitwise-not lognot
+     bitwise-merge bitwise-if any-bits-set? logtest bit-count logcount
+     integer-length first-set-bit log2-binary-factors bit-set? logbit?
+     copy-bit bit-field copy-bit-field arithmetic-shift ash rotate-bit-field
+     reverse-bit-field integer->list list->integer booleans->integer
+     ))
+
 ; (cc:build-env+mem <symbol> ...)
 ; Returns an environment/memory pair. The environment is an assoc list mapping
 ; symbols to memory locations. The memory is a vector of corresponding values.
@@ -48,63 +105,45 @@
 ;         #<primitive:append>
 ;         ...)))
 ;
-(define-macro (cc:build-env+mem . syms)
+(define (cc:build-env+mem syms)
   (let loop ((syms syms) (i 0) (env '()) (mem '()))
     (if (null? syms) 
-      `(list
-         (cons 'env (list   . ,(reverse env)))
-         (cons 'mem (vector . ,(reverse mem))))
+      (list
+         (cons 'env (reverse env))
+         (cons 'mem (list->vector (reverse mem))))
       (loop
         (rest syms)
         (+ i 1)
-        (cons `(cons ',(car syms) ,i) env)
-        (cons (car syms) mem)))))
+        (cons (cons (car syms) i) env)
+        (cons (eval (car syms) #f) mem)))))
 
-; Calculate the core r5rs environment
+(define *cc:global-env* '())
+
+(define *cc:global-mem* #())
+
+; Calculate the core environment
 ; TODO - we can instead interrogate interned-symbols...
 ; we should run (a version of) vm-define against all of
 ; the compiled-lambdas.
-(define cc:r5rs-env+mem
-  (cc:build-env+mem
-    gc-info gc-check gc booleans->integer list->integer integer->list reverse-bit-field
-    rotate-bit-field ash arithmetic-shift copy-bit-field bit-field copy-bit logbit? bit-set?
-    log2-binary-factors first-set-bit integer-length logcount bit-count logtest any-bits-set?
-    bitwise-if bitwise-merge lognot bitwise-not logxor bitwise-xor logior bitwise-ior logand
-    bitwise-and file-stat stack-frame-ref stack-frame-next-frame stack-frame-env stack-frame-pc
-    stack-frame-length continuation->stack-frame stack-frame? continuation?
-    error trace-load
-    load write-char newline display pretty-print write char-ready? eof-object? peek-char read-char
-    read close-output-port close-input-port open-output-file open-input-file
-    %set-current-output-port! %set-current-input-port! current-output-port current-input-port
-    output-port? input-port? procedure? not boolean? string->keyword keyword->string keyword?
-    gensym string->symbol symbol->string symbol? char-downcase char-upcase integer->char
-    char->integer char-lower-case? char-upper-case? char-whitespace? char-numeric? char-alphabetic?
-    char-ci>=? char-ci<=? char-ci>? char-ci<? char-ci=? char>=? char<=? char>? char<? char=? char?
-    string-ci>=? string-ci<=? string-ci>? string-ci<? string-ci=? string>=? string<=? string>?
-    string<? string=? string-fill! string-copy list->string string->list string-append substring
-    string-set! string-ref string-length string make-string string? equal? eq? eqv? %record-set!
-    %record-ref %record %make-record record? vector-set! vector-ref vector-length vector
-    make-vector vector? string->number number->string / * - + > >= = <= < max min expt atan sqrt
-    acos asin tan cos sin log exp round truncate ceiling floor modulo remainder quotient abs even?
-    odd? positive? negative? zero? inexact? exact? integer? rational? real? complex? number?
-    inexact->exact exact->inexact
-    assoc assv assq member memv memq
-    list-ref list-tail reverse append length list list? null? set-cdr!
-    set-car! cddddr cdddar cddadr cddaar cdaddr cdadar cdaadr cdaaar cadddr caddar cadadr cadaar
-    caaddr caadar caaadr caaaar third cdddr cddar cdadr cdaar caddr cadar caadr caaar second cddr
-    cdar cadr caar rest first cdr car cons pair? unquote-splicing unquote quasiquote
-    undefined void apply %compile trace-compile))
+(let ((env+mem
+        (cc:build-env+mem
+          (append
+            cc:r5rs-builtin
+            cc:r5rs-library
+            cc:srfi-60-builtin))))
 
-; Extract the environment
-(define *cc:global-env* (cdr (assoc 'env cc:r5rs-env+mem)))
+  ; Extract the environment
+  (set! *cc:global-env* (cdr (assq 'env env+mem)))
 
-; Extract the initial memory state
-(define *cc:global-mem* (cdr (assoc 'mem cc:r5rs-env+mem)))
+  ; Extract the initial memory state
+  (set! *cc:global-mem* (cdr (assq 'mem env+mem)))
+  )
 
 (define *cc:global-index* (vector-length *cc:global-mem*))
 
-(define *global-pc* 0)
-(define *global-prog* #())
+(define *cc:global-pc* 0)
+
+(define *cc:global-prog* #())
 
 ; (cc:make-linkage <code> ...)
 ; Returns a new linkage containing the supplied code, and no procs.
@@ -145,25 +184,21 @@
 (define (cc:evaluate expr env)
   (cond
     ((symbol? expr)
-     (cc:env-get expr env))
-
+      (cc:env-get expr env))
     ((pair? expr)
-     (let ((func (first expr))
-           (args (rest expr)))
-       (case func
-         ((%lambda) (cc:lambda (cadr expr) (cddr expr) env))
-         ((if)
-			(case (length args)
-				((2) (cc:if2 (first args) (second args) env))
-				((3) (cc:if3 (first args) (second args) (third args) env))
-				(else (cc:raise-error "if needs either 2 or 3 arguments"))))
-         ((set!) (cc:set! (first args) (second args) env))
-         ((%define) (cc:define (first args) (second args) env))
-         ((begin) (cc:begin args env))
-         ((quote) (cc:literal (first args)))
-         ((call/cc eval apply) (cc:raise-error "unimplemented: " func))
-         (else
-           (cc:application func args env)))))
+      (let ((func (first expr))
+             (args (rest expr)))
+        (case func
+          ((%lambda) (cc:lambda (first args) (rest args) env))
+          ((if) (cc:if args env))
+          ((and) (cc:and args env))
+          ((or) (cc:or args env))
+          ((set!) (cc:set! (first args) (second args) env))
+          ((%define) (cc:define (first args) (second args) env))
+          ((begin) (cc:begin args env))
+          ((quote) (cc:literal (first args)))
+          (else
+            (cc:application func args env)))))
     (else
       (cc:literal expr))))
 
@@ -231,36 +266,75 @@
           (cc:linkage-code body-linkage)
           (cc:linkage-procs body-linkage))))))
 
+(define (cc:inlinable? func-sym env)
+  (and
+    (symbol? func-sym)
+    (not (eq? func-sym 'apply)) ;; TODO - fix horrid special case
+    (not (eq? func-sym '%call/cc)) ;; TODO - fix horrid special case
+    (not (cc:env-lookup func-sym env))
+    (memv func-sym cc:r5rs-builtin)
+    (%func? (eval func-sym #f))))
+
+(define (cc:inline-application func-sym args env)
+  (let* ((func (eval func-sym #f))
+          (argc (length args))
+          (min-arity (%func-min-arity func))
+          (max-arity (%func-max-arity func))
+          (index (%func-index func)))
+    (cond
+      ((< argc min-arity)
+        (error "too few arguments"))
+      ((and max-arity (> argc max-arity))
+        (error "too many arguments"))
+      (else
+        (cc:join-linkages
+          ; write to frame instead of pushing?
+          (cc:evaluate-args args env)
+          (cc:literal index)
+          (cc:make-linkage
+            (case argc
+              ((0) `(prim-0))
+              ((1) `(prim-1))
+              ((2) `(prim-2))
+              ((3) `(prim-3))
+              ((4) `(prim-4))
+              (else
+                `(prim-n ,argc)))))))))
+
 ; (cc:application <func:expr> <args:expr-list> <env>)
 ; Returns a linkage that will evaluate <args> leaving the results on the stack,
 ; then evaluate <func> to a procedure in the value register, and finally invoke
 ; the procedure with the evaluated arguments, leaving the result in the value
 ; register.
 (define (cc:application func args env)
-  (let ((argc (length args)))
-    (cc:join-linkages
-      (cc:evaluate-args args env)
-      (cc:evaluate func env)
-      (cc:make-linkage
-        (case argc
-          ((0) `(call-0))
-          ((1) `(call-1))
-          ((2) `(call-2))
-          ((3) `(call-3))
-          ((4) `(call-4))
-          (else
-            `(call-n ,argc)))))))
+  (if (cc:inlinable? func env)
+    (cc:inline-application func args env)
+    (let ((argc (length args)))
+      (cc:join-linkages
+        (cc:evaluate-args args env)
+        (cc:evaluate func env)
+        (cc:make-linkage
+          (case argc
+            ((0) `(call-0))
+            ((1) `(call-1))
+            ((2) `(call-2))
+            ((3) `(call-3))
+            ((4) `(call-4))
+            (else
+              `(call-n ,argc))))))))
 
 ; (cc:evaluate-args <args:expr-list> <env>)
 ; Returns a linkage that will evaluate <args> leaving the results on the stack,
 ; and the value register in an indeterminate state.
 (define (cc:evaluate-args args env)
-  (if (null? args) (cc:make-linkage)
-    (cc:join-linkages
-      (cc:evaluate (first args) env)
-      (cc:make-linkage
-        `(push))
-      (cc:evaluate-args (rest args) env))))
+  (let loop ((argi 0) (args args))
+    (if (null? args)
+      (cc:make-linkage)
+      (cc:join-linkages
+        (cc:evaluate (first args) env)
+        (cc:make-linkage
+          `(push))
+        (loop (+ argi 1) (rest args))))))
 
 ; (cc:gen-label)
 ; Returns a new unique symbol which can be used as a label.
@@ -270,6 +344,12 @@
       (set! label (+ label 1))
       (string->symbol (string-append "L" (number->string label))))))
 
+
+(define (cc:if args env)
+  (case (length args)
+    ((2) (cc:if2 (first args) (second args) env))
+    ((3) (cc:if3 (first args) (second args) (third args) env))
+    (else (cc:raise-error "if needs either 2 or 3 arguments"))))
 
 ; (cc:if2 <test:expr> <true-branch:expr> <env>)
 ; Returns a linkage that will evaluate <test>, and if true evaluate
@@ -306,18 +386,43 @@
       (cc:make-linkage
         `(label ,endif-label)))))
 
+(define (cc:logic exprs env empty-value branch-op)
+  (case (length exprs)
+    ((0) (cc:literal empty-value))
+    ((1) (cc:evaluate (first exprs) env))
+    (else
+      (let ((end-label (cc:gen-label)))
+        (let loop ((exprs exprs))
+          (if (null? (rest exprs))
+            (cc:join-linkages
+              (cc:evaluate (first exprs) env)
+              (cc:make-linkage
+                `(label ,end-label)))
+            (cc:join-linkages
+              (cc:evaluate (first exprs) env)
+              (cc:make-linkage `(,branch-op ,end-label))
+              (loop (rest exprs)))))))))
+
+; (cc:and <expr-list> <env>)
+(define (cc:and exprs env)
+  (cc:logic exprs env #t 'branch-false))
+
+; (cc:or <expr-list> <env>)
+(define (cc:or exprs env)
+  (cc:logic exprs env #f 'branch-true))
+
 ; (cc:begin <expr-list> <env>)
 ; Returns a linkage that will evaluate each of the expressions in body.
 ; The final result will be left in the value register. If <body> is
 ; empty, value will be void.
-(define (cc:begin body env)
-  (case (length body)
-    ((0) (cc:make-linkage `(void)))
-    ((1) (cc:evaluate (first body) env))
-    (else
-      (cc:join-linkages
-		(cc:evaluate (first body) env)
-		(cc:begin (rest body) env)))))
+  (define (cc:begin body env)
+    (case (length body)
+      ((0) (cc:make-linkage `(void)))
+      ((1) (cc:evaluate (first body) env))
+      (else
+        (cc:join-linkages
+          (cc:evaluate (first body) env)
+          (cc:begin (rest body) env)))))
 
 ; (cc:literal <arg>)
 ; Returns a linkage that will set the value register to the literal <arg>.
@@ -363,11 +468,10 @@
 ; (cc:get-global-offset <var:symbol>)
 ; Returns a reference to <var> in the global environment, creating a new entry
 ; first if necessary.
-; TODO - verify return values etc
 (define cc:get-global-offset
     (lambda (var)
       (cond
-        ((assoc var *cc:global-env*) => (lambda (v) (list (cdr v) (car v))))
+        ((assq var *cc:global-env*) => (lambda (v) (list (cdr v) (car v))))
         (else
           (let ((index *cc:global-index*))
             (set! *cc:global-env* (cons (cons var index) *cc:global-env*))
@@ -440,28 +544,36 @@
 
 ; List of opcodes support by the vm - see src/vm.c
 (define cc:vm-branch-false     0)
-(define cc:vm-branch           1)
-(define cc:vm-lit              2)
-(define cc:vm-push             3)
-(define cc:vm-set-global       4)
-(define cc:vm-get-global       5)
-(define cc:vm-set-slot         6)
-(define cc:vm-get-slot         7)
-(define cc:vm-make-closure     8)
-(define cc:vm-return           9)
-(define cc:vm-void            10)
-(define cc:vm-halt            11)
-(define cc:vm-call-0          12)
-(define cc:vm-call-1          13)
-(define cc:vm-call-2          14)
-(define cc:vm-call-3          15)
-(define cc:vm-call-4          16)
-(define cc:vm-call-n          17)
+(define cc:vm-branch-true      1)
+(define cc:vm-branch           2)
+(define cc:vm-lit              3)
+(define cc:vm-push             4)
+(define cc:vm-set-global       5)
+(define cc:vm-get-global       6)
+(define cc:vm-set-slot         7)
+(define cc:vm-get-slot         8)
+(define cc:vm-make-closure     9)
+(define cc:vm-return          10)
+(define cc:vm-void            11)
+(define cc:vm-halt            12)
+(define cc:vm-call-0          13)
+(define cc:vm-call-1          14)
+(define cc:vm-call-2          15)
+(define cc:vm-call-3          16)
+(define cc:vm-call-4          17)
+(define cc:vm-call-n          18)
+(define cc:vm-prim-0          19)
+(define cc:vm-prim-1          20)
+(define cc:vm-prim-2          21)
+(define cc:vm-prim-3          22)
+(define cc:vm-prim-4          23)
+(define cc:vm-prim-n          24)
 
 ; An assoc-list mapping each instruction name to (<opcode> <length>).
 ; If <opcode> is #f it indicates that there is no corresponding opcode.
 (define cc:opcode-metadata
   `((branch-false    ,cc:vm-branch-false    2)
+    (branch-true     ,cc:vm-branch-true     2)
     (branch          ,cc:vm-branch          2)
     (lit             ,cc:vm-lit             2)
     (push            ,cc:vm-push            1)
@@ -479,19 +591,25 @@
     (call-3          ,cc:vm-call-3          1)
     (call-4          ,cc:vm-call-4          1)
     (call-n          ,cc:vm-call-n          2)
+    (prim-0          ,cc:vm-prim-0          1)
+    (prim-1          ,cc:vm-prim-1          1)
+    (prim-2          ,cc:vm-prim-2          1)
+    (prim-3          ,cc:vm-prim-3          1)
+    (prim-4          ,cc:vm-prim-4          1)
+    (prim-n          ,cc:vm-prim-n          2)
     (label           #f                     0)
     (template        #f                     2)))
 
 ; (cc:opcode->bytecode <opcode:symbol>)
 ; Returns the integer bytecode corresponding to <opcode>)
 (define (cc:opcode->bytecode opcode)
-  (cond ((assoc opcode cc:opcode-metadata) => second)
+  (cond ((assq opcode cc:opcode-metadata) => second)
         (else (cc:raise-error "unknown opcode " opcode))))
 
 ; (cc:opcode->length <opcode:symbol>)
 ; Returns the length of the encoded <opcode> including arguments.
 (define (cc:opcode->length opcode)
-  (cond ((assoc opcode cc:opcode-metadata) => third)
+  (cond ((assq opcode cc:opcode-metadata) => third)
         (else (cc:raise-error "unknown opcode " opcode))))
 
 ; (cc:assembly->program <code:instruction-list> <labels:assoc-list>)
@@ -513,9 +631,9 @@
                    (cons (third instruction)
                          (loop (rest code)))))
 
-            ((branch branch-false make-closure)
+            ((branch branch-false branch-true make-closure)
              (cons bytecode
-                   (cons (cdr (assoc (second instruction) labels))
+                   (cons (cdr (assq (second instruction) labels))
                          (loop (rest code)))))
 
             ((lit call-n set-global get-global)
@@ -621,6 +739,7 @@
               (if (< pos 12) (begin (display " ") (lp (+ pos 1))))))
           (cond
             ((eq? instruction cc:vm-branch-false)     (let ((label (prog-fetch))) (if (not value) (set! pc label))))
+            ((eq? instruction cc:vm-branch-true)      (let ((label (prog-fetch))) (if value (set! pc label))))
             ((eq? instruction cc:vm-branch)           (set! pc (prog-fetch)))
             ((eq? instruction cc:vm-lit)              (set! value (prog-fetch)))
             ((eq? instruction cc:vm-push)             (stack-push value))
@@ -643,6 +762,11 @@
             ((eq? instruction cc:vm-call-3)           (call 3))
             ((eq? instruction cc:vm-call-4)           (call 4))
             ((eq? instruction cc:vm-call-n)           (call (prog-fetch)))
+            ((eq? instruction cc:vm-prim-0)           (prim 0))
+            ((eq? instruction cc:vm-prim-1)           (prim 1))
+            ((eq? instruction cc:vm-prim-2)           (prim 2))
+            ((eq? instruction cc:vm-prim-3)           (prim 3))
+            ((eq? instruction cc:vm-prim-4)           (prim 4))
             (else
               (return-with-value `(exception: "unknown-instruction" ,instruction))))
 
@@ -657,12 +781,12 @@
 (define-macro (vm-run expr)
   `(let*
      ((linkage (cc:prog ',(core:macro-expand expr) '()))
-       (current-pc *global-pc*)
+       (current-pc *cc:global-pc*)
        (pc+prog (cc:assemble current-pc linkage))
-       (combined-prog (vector-append *global-prog* (second pc+prog))))
-     (set! *global-prog* combined-prog)
-     (set! *global-pc* (first pc+prog))
-     (%vm-run current-pc *global-prog* *cc:global-mem*)))
+       (combined-prog (vector-append *cc:global-prog* (second pc+prog))))
+     (set! *cc:global-prog* combined-prog)
+     (set! *cc:global-pc* (first pc+prog))
+     (%vm-run current-pc *cc:global-prog* *cc:global-mem*)))
 
 ; Debugging
 

@@ -77,7 +77,7 @@ CELL make_func(
     p->func_index = make_int((INT) func_index);
     p->receiver = make_int(receiver);
     p->min_args = make_int(min_args);
-    p->max_args = make_int(max_args);
+    p->max_args = (max_args < 0) ? V_FALSE : make_int(max_args);
     func_entries[func_index++] = func_entry;
 
     gc_unroot();
@@ -334,6 +334,23 @@ CELL make_db_result(void *handle) {
 
     p->handle = handle;
     return db_result;
+}
+
+CELL make_vm_closure(INT label, CELL env) {
+    CELL closure = gc_alloc(VM_CLOSURE);
+    VM_CLOSURE *p = GET_VM_CLOSURE(closure);
+    p->vm_label = make_int(label);
+    p->vm_env = env;
+    return closure;
+}
+
+CELL make_vm_continuation(INT pc, CELL env, CELL stack) {
+    CELL cont = gc_alloc(VM_CONTINUATION);
+    VM_CONTINUATION *p = GET_VM_CONTINUATION(cont);
+    p->vm_pc = make_int(pc);
+    p->vm_env = env;
+    p->vm_stack = stack;
+    return cont;
 }
 
 static CELL make_raw_symbol() {

@@ -116,9 +116,6 @@ static INT profile_deliver = 0;
 	macro_functor(l_inline_eval_receiver,         3, l_inline_eval_direct) \
 	macro_functor(l_inline_call_cc_direct,        0, 0) \
 	macro_functor(l_inline_call_cc_receiver,      3, l_inline_call_cc_direct) \
-	macro_functor(l_inline_call_values_direct,    0, 0) \
-	macro_functor(l_inline_call_values_receiver,  3, l_inline_call_values_direct) \
-    macro_functor(l_receive_values,               1, 0) \
 	macro_functor(l_receive_define_value,         1, 0) \
 	macro_functor(l_receive_set_slot_value,       1, 0) \
 	macro_functor(l_receive_set_name_value,       1, 0) \
@@ -253,7 +250,6 @@ CELL internal_execute() {
                 //      see l_eval
                 //
                 if (opt_trace_eval) {
-                    printf(" argc=%"PRId64, argc);
                     printf(" frame=%p", OBJECT_POINTER(frame));
                     trace_newline();
                 }
@@ -517,12 +513,12 @@ CELL internal_execute() {
                         }
                     }
                 } else if (FUNCP(value)) {
-                    INT min_args = GET_INT(GET_FUNC(value)->min_args);
-                    INT max_args = GET_INT(GET_FUNC(value)->max_args);
-                    if (argc < min_args) {
+                    const CELL min_args = GET_FUNC(value)->min_args;
+                    const CELL max_args = GET_FUNC(value)->max_args;
+                    if (argc < GET_INT(min_args)) {
                         args = V_EMPTY;
                         THROW(make_exception2(value, "too few arguments"));
-                    } else if (max_args >= 0 && argc > max_args) {
+                    } else if (TRUEP(max_args) && argc > GET_INT(max_args)) {
                         args = V_EMPTY;
                         THROW(make_exception2(value, "too many arguments"));
                     } else {
@@ -970,66 +966,6 @@ CELL internal_execute() {
                 break;
             }
 
-            case l_inline_call_values_receiver: {
-                // The receiver for the built-in "call-with-values" procedure.
-                //
-                // Arguments:
-                //      fv0 <value> - ignored
-                //      fv1 <argc>  - ignored
-                //      fv2 <frame> - environment frame holding 2 arguments: <producer> <consumer>
-                //
-                // Allocations:
-                //      see l_inline_call_values_direct
-                //
-                frame = FRAME_VAR(2);
-                //
-                // fall through
-            }
-
-            case l_inline_call_values_direct: {
-                // Evaluates <producer> and delivers its result(s) as arguments to <consumer>.
-                //
-                // Arguments:
-                //      reg value - ignored
-                //      reg argc  - ignored
-                //      reg frame - environment frame holding 2 arguments: <producer> <consumer>
-                //
-                // Allocations:
-                //      TODO
-                //
-                if (opt_trace_eval) {
-                    //TODO
-                }
-                gc_check_headroom();
-                value = GET_ENV(frame)->cells[1];
-                PUSH_CONT1(l_receive_values, value);
-                value = GET_ENV(frame)->cells[0];
-                frame = V_EMPTY;
-                args = V_NULL;
-                argc = 0;
-                JUMP(l_apply_no_eval);
-                break;
-            }
-
-            case l_receive_values: {
-                //
-                // Arguments:
-                //      reg value
-                //      fv0 consumer
-                //
-                if (VALUESP(value)) {
-                    VALUES *p = GET_VALUES(value);
-                    args = p->value_list;
-                    argc = p->len;
-                } else {
-                    args = make_list_1(value);
-                    argc = 1;
-                }
-                value = FRAME_VAR(0);
-                JUMP(l_apply_no_eval);
-                break;
-            }
-
             case l_receive_define_value: {
                 // Receives an evaluated expression and sets the given symbol's binding
                 // in the global environment to its value. Delivers (void).
@@ -1418,10 +1354,17 @@ CELL internal_compile_eval(CELL expr) {
 }
 
 #if defined(TRACE_EVAL_ENABLE)
+DECLARE_FUNC(
+    func_trace_eval, 0, 1,
+    "trace-eval", "[bool]",
+    "Enables or disables tracing of evaluation according to <bool>."
+    "If <bool> is not supplied, returns the current state of the flag."
+)
+
 CELL func_trace_eval(CELL frame)
 {
 	if (FC == 0) {
-		return MKBOOL(opt_trace_eval);
+		return make_bool(opt_trace_eval);
 	}
 	if (( opt_trace_eval = TRUEP(FV0) )) {
 		trace_reset(1);
@@ -1529,16 +1472,6 @@ DECLARE_INLINE(
     "Exits the interpreter loop, returning <obj>."
 )
 
-DECLARE_INLINE(
-    meta_call_with_values,
-    l_inline_call_values_receiver, 2, 2,
-    "call-with-values", "producer:proc consumer:proc",
-    "Calls <producer> with no arguments, then invokes <consumer> with"
-    " the returned value(s) as arguments, and returns the result."
-    "\n\n"
-    "(call-with-values (lambda() (values 4 5)) (lambda(a b) b)) => 5"
-)
-
 DECLARE_FUNC_0(
     func_current_exception_handler,
     "current-exception-handler",
@@ -1586,6 +1519,20 @@ CELL func_values(CELL frame) {
 }
 
 DECLARE_FUNC(
+    func_values2list, 1, 1,
+    "%values->list", "<obj>",
+    "If <obj> holds multiple values, returns the values as a list, otherwise"
+    " returns a single element list containing <obj>."
+)
+
+CELL func_values2list(CELL frame) {
+    if (VALUESP(FV0)) {
+        return GET_VALUES(FV0)->value_list;
+    }
+    return make_list_1(FV0);
+}
+
+DECLARE_FUNC(
     func_closurep, 1, 1,
     "%closure?", "obj",
     "Returns #t if <obj> is a closure, otherwise #f."
@@ -1617,8 +1564,6 @@ void eval_register_symbols() {
         register_func(&meta_return_from_interpreter);
     exn_handler = GET_SYMBOL(return_symbol)->binding;
 
-    register_func(&meta_call_with_values);
-
 #if defined(TRACE_EVAL_ENABLE)
     register_func(&meta_func_trace_eval);
 #endif
@@ -1632,6 +1577,7 @@ void eval_register_symbols() {
     register_func(&meta_func_current_exception_handler);
     register_func(&meta_func_set_exception_handler);
     register_func(&meta_func_values);
+    register_func(&meta_func_values2list);
 
     register_func(&meta_func_closurep);
     register_func(&meta_func_closure_lambda);
