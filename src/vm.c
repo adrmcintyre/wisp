@@ -5,32 +5,6 @@
 #include "gc.h"
 #include "heap.h"
 
-#define VM_BRANCH_IF_FALSE 0
-#define VM_BRANCH_IF_TRUE 1
-#define VM_BRANCH 2
-#define VM_LIT 3
-#define VM_PUSH 4
-#define VM_SET_GLOBAL 5
-#define VM_GET_GLOBAL 6
-#define VM_SET_SLOT 7
-#define VM_GET_SLOT 8
-#define VM_MAKE_CLOSURE 9
-#define VM_RETURN 10
-#define VM_VOID 11
-#define VM_HALT 12
-#define VM_CALL_0 13
-#define VM_CALL_1 14
-#define VM_CALL_2 15
-#define VM_CALL_3 16
-#define VM_CALL_4 17
-#define VM_CALL_N 18
-#define VM_PRIM_0 19
-#define VM_PRIM_1 20
-#define VM_PRIM_2 21
-#define VM_PRIM_3 22
-#define VM_PRIM_4 23
-#define VM_PRIM_N 24
-
 static CELL stack = V_NULL;
 static CELL env = V_NULL;
 static CELL value = V_EMPTY;
@@ -233,196 +207,238 @@ CELL func_vm_run(CELL frame) {
     const INT prog_len = GET_VECTOR(FV1)->len;
     globals = FV2;
 
-    while (1) {
-        //printf("%lld: ", vm_pc);
-        //TODO make this an assertion instead?
-        if (vm_pc < 0 || vm_pc >= prog_len) {
-            gc_unroot();
-            return make_exception("pc out of bounds");
+    static void *const dispatch_table[] = {
+        &&VM_BRANCH_IF_FALSE, // 0
+        &&VM_BRANCH_IF_TRUE, // 1
+        &&VM_BRANCH, // 2
+        &&VM_LIT, // 3
+        &&VM_PUSH, // 4
+        &&VM_SET_GLOBAL, // 5
+        &&VM_GET_GLOBAL, // 6
+        &&VM_SET_SLOT, // 7
+        &&VM_GET_SLOT, // 8
+        &&VM_MAKE_CLOSURE, // 9
+        &&VM_RETURN, // 10
+        &&VM_VOID, // 11
+        &&VM_HALT, // 12
+#define OP_CALL_0 13
+        &&VM_CALL_0, // 13
+        &&VM_CALL_1, // 14
+        &&VM_CALL_2, // 15
+        &&VM_CALL_3, // 16
+        &&VM_CALL_4, // 17
+#define OP_CALL_N 18
+        &&VM_CALL_N, // 18
+#define OP_PRIM_0 19
+        &&VM_PRIM_0, // 19
+        &&VM_PRIM_1, // 20
+        &&VM_PRIM_2, // 21
+        &&VM_PRIM_3, // 22
+        &&VM_PRIM_4, // 23
+#define OP_PRIM_N 24
+        &&VM_PRIM_N // 24
+    };
+
+    {
+        INT opcode;
+
+        //#define NEXT_OP() \
+        //        do { \
+        //            printf("%lld: ", vm_pc); \
+        //            if (vm_pc < 0 || vm_pc >= prog_len) { \
+        //                gc_unroot(); \
+        //                return make_exception("pc out of bounds"); \
+        //            } \
+        //            opcode = GET_INT(program[vm_pc++]); \
+        //            goto *dispatch_table[opcode]; \
+        //        } while(0)
+
+#define NEXT_OP() \
+        do { \
+            opcode = GET_INT(program[vm_pc++]); \
+            goto *dispatch_table[opcode]; \
+        } while(0)
+
+        NEXT_OP();
+
+    VM_BRANCH_IF_FALSE: {
+            const INT label = GET_INT(program[vm_pc++]);
+            //printf("if-false %lld\n", label);
+            if (FALSEP(value)) vm_pc = label;
+            NEXT_OP();
         }
-        const INT opcode = GET_INT(program[vm_pc++]);
-        switch (opcode) {
-            case VM_BRANCH_IF_FALSE: {
-                const INT label = GET_INT(program[vm_pc++]);
-                //printf("if-false %lld\n", label);
-                if (FALSEP(value)) vm_pc = label;
-                break;
+    VM_BRANCH_IF_TRUE: {
+            const INT label = GET_INT(program[vm_pc++]);
+            //printf("if-true %lld\n", label);
+            if (TRUEP(value)) vm_pc = label;
+            NEXT_OP();
+        }
+    VM_BRANCH: {
+            const INT label = GET_INT(program[vm_pc++]);
+            //printf("branch %lld\n", label);
+            vm_pc = label;
+            NEXT_OP();
+        }
+    VM_LIT: {
+            value = program[vm_pc++];
+            //printf("lit 0x%08llx\n", value.as_bits);
+            NEXT_OP();
+        }
+    VM_PUSH: {
+            //printf("push\n");
+            vm_push(value);
+            NEXT_OP();
+        }
+    VM_SET_GLOBAL: {
+            const INT glob = GET_INT(program[vm_pc++]);
+            //printf("set-global %lld\n", glob);
+            *vm_glob_lookup(glob) = value;
+            NEXT_OP();
+        }
+    VM_GET_GLOBAL: {
+            const INT glob = GET_INT(program[vm_pc++]);
+            //printf("get-global %lld\n", glob);
+            value = *vm_glob_lookup(glob);
+            NEXT_OP();
+        }
+    VM_SET_SLOT: {
+            const INT slot = GET_INT(program[vm_pc++]);
+            //printf("set-slot %lld\n", slot);
+            *vm_env_lookup(slot) = value;
+            NEXT_OP();
+        }
+    VM_GET_SLOT: {
+            const INT slot = GET_INT(program[vm_pc++]);
+            //printf("get-slot %lld\n", slot);
+            value = *vm_env_lookup(slot);
+            NEXT_OP();
+        }
+    VM_MAKE_CLOSURE: {
+            const INT label = GET_INT(program[vm_pc++]);
+            //printf("make-closure %lld\n", label);
+            value = make_vm_closure(label, env);
+            NEXT_OP();
+        }
+    VM_RETURN: {
+            //printf("return\n");
+            env = vm_pop();
+            vm_pc = GET_INT(vm_pop());
+            NEXT_OP();
+        }
+    VM_VOID: {
+            //printf("void\n");
+            value = V_VOID;
+            NEXT_OP();
+        }
+    VM_HALT: {
+            //printf("halt\n");
+            gc_unroot();
+            return value;
+        }
+
+    VM_CALL_0:
+    VM_CALL_1:
+    VM_CALL_2:
+    VM_CALL_3:
+    VM_CALL_4:
+    VM_CALL_N: {
+            vm_argc = (opcode < OP_CALL_N) ? (opcode - OP_CALL_0) : GET_INT(program[vm_pc++]);
+            //printf("call%lld\n", vm_argc);
+
+        RESTART_VM_CALL:
+            if (FUNCP(value)) {
+                if (vm_call_func()) {
+                    goto RESTART_VM_CALL;
+                }
+            } else if (VM_CLOSUREP(value)) {
+                vm_call_closure();
+            } else if (VM_CONTINUATIONP(value)) {
+                vm_call_continuation();
+                NEXT_OP();
+            } else if (UNDEFINEDP(value)) {
+                value = make_exception("cannot call undefined value");
+            } else {
+                value = make_exception("operator is not callable");
             }
-            case VM_BRANCH_IF_TRUE: {
-                const INT label = GET_INT(program[vm_pc++]);
-                //printf("if-true %lld\n", label);
-                if (TRUEP(value)) vm_pc = label;
-                break;
-            }
-            case VM_BRANCH: {
-                const INT label = GET_INT(program[vm_pc++]);
-                //printf("branch %lld\n", label);
-                vm_pc = label;
-                break;
-            }
-            case VM_LIT: {
-                value = program[vm_pc++];
-                //printf("lit 0x%08llx\n", value.as_bits);
-                break;
-            }
-            case VM_PUSH: {
-                //printf("push\n");
+            if (EXCEPTIONP(value)) {
                 vm_push(value);
-                break;
+                vm_argc = 1;
+                value = vm_exn_handler;
+                ////frame = V_EMPTY;
+                goto RESTART_VM_CALL;
             }
-            case VM_SET_GLOBAL: {
-                const INT glob = GET_INT(program[vm_pc++]);
-                //printf("set-global %lld\n", glob);
-                *vm_glob_lookup(glob) = value;
-                break;
-            }
-            case VM_GET_GLOBAL: {
-                const INT glob = GET_INT(program[vm_pc++]);
-                //printf("get-global %lld\n", glob);
-                value = *vm_glob_lookup(glob);
-                break;
-            }
-            case VM_SET_SLOT: {
-                const INT slot = GET_INT(program[vm_pc++]);
-                //printf("set-slot %lld\n", slot);
-                *vm_env_lookup(slot) = value;
-                break;
-            }
-            case VM_GET_SLOT: {
-                const INT slot = GET_INT(program[vm_pc++]);
-                //printf("get-slot %lld\n", slot);
-                value = *vm_env_lookup(slot);
-                break;
-            }
-            case VM_MAKE_CLOSURE: {
-                const INT label = GET_INT(program[vm_pc++]);
-                //printf("make-closure %lld\n", label);
-                value = make_vm_closure(label, env);
-                break;
-            }
-            case VM_RETURN: {
-                //printf("return\n");
-                env = vm_pop();
-                vm_pc = GET_INT(vm_pop());
-                break;
-            }
-            case VM_VOID: {
-                //printf("void\n");
-                value = V_VOID;
-                break;
-            }
-            case VM_HALT: {
-                //printf("halt\n");
-                gc_unroot();
-                return value;
-            }
-            case VM_CALL_0:
-            case VM_CALL_1:
-            case VM_CALL_2:
-            case VM_CALL_3:
-            case VM_CALL_4:
-            case VM_CALL_N: {
-                vm_argc = (opcode < VM_CALL_N) ? (opcode - VM_CALL_0) : GET_INT(program[vm_pc++]);
-                //printf("call%lld\n", vm_argc);
+            NEXT_OP();
+        }
 
-                restart:
-                if (FUNCP(value)) {
-                    if (vm_call_func()) {
-                        goto restart;
-                    }
-                } else if (VM_CLOSUREP(value)) {
-                    vm_call_closure();
-                } else if (VM_CONTINUATIONP(value)) {
-                    vm_call_continuation();
-                    break;
-                } else if (UNDEFINEDP(value)) {
-                    value = make_exception("cannot call undefined value");
-                } else {
-                    value = make_exception("operator is not callable");
-                }
-                if (EXCEPTIONP(value)) {
-                    vm_push(value);
-                    vm_argc = 1;
-                    value = vm_exn_handler;
-                    ////frame = V_EMPTY;
-                    goto restart;
-                }
-                break;
+    VM_PRIM_4:
+        GET_ENV(reusable_frame)->cells[3] = vm_pop();
+    VM_PRIM_3:
+        GET_ENV(reusable_frame)->cells[2] = vm_pop();
+    VM_PRIM_2:
+        GET_ENV(reusable_frame)->cells[1] = vm_pop();
+    VM_PRIM_1:
+        GET_ENV(reusable_frame)->cells[0] = vm_pop();
+    VM_PRIM_0: {
+            const INT argc = opcode - OP_PRIM_0;
+            //printf("prim%lld\n", argc);
+            // TODO - we need to mark the reusable frame in some way so the GC knows
+            // that its length is fixed instead of depending on count
+            GET_ENV(reusable_frame)->count = make_int(argc);
+            const INT func_index = GET_INT(value);
+            const FUNC_ENTRY func_entry = func_entries[func_index];
+            const CELL result = (*func_entry)(reusable_frame);
+            GET_ENV(reusable_frame)->count = make_int(0);
+
+            if (EXCEPTIONP(result)) {
+                EXCEPTION *exn = GET_EXCEPTION(result);
+                // TODO - need to stash func names in func_entries
+                // if (FALSEP(exn->source_str)) {
+                //     exn->source_str = GET_FUNC(value)->name_str;
+                // }
+                vm_push(result);
+                vm_argc = 1;
+                value = vm_exn_handler;
+                ////frame = V_EMPTY;
+                goto RESTART_VM_CALL;
             }
-            case VM_PRIM_4:
-                GET_ENV(reusable_frame)->cells[3] = vm_pop();
-            case VM_PRIM_3:
-                GET_ENV(reusable_frame)->cells[2] = vm_pop();
-            case VM_PRIM_2:
-                GET_ENV(reusable_frame)->cells[1] = vm_pop();
-            case VM_PRIM_1:
-                GET_ENV(reusable_frame)->cells[0] = vm_pop();
-            case VM_PRIM_0: {
-                const INT argc = opcode - VM_PRIM_0;
-                //printf("prim%lld\n", argc);
-                // TODO - we need to mark the reusable frame in some way so the GC knows
-                // that its length is fixed instead of depending on count
-                GET_ENV(reusable_frame)->count = make_int(argc);
-                const INT func_index = GET_INT(value);
-                const FUNC_ENTRY func_entry = func_entries[func_index];
-                const CELL result = (*func_entry)(reusable_frame);
+            value = result;
+            NEXT_OP();
+        }
+
+    VM_PRIM_N: {
+            vm_argc = GET_INT(program[vm_pc++]);
+            //printf("prim%lld\n", vm_argc);
+
+            const INT func_index = GET_INT(value);
+            const FUNC_ENTRY func_entry = func_entries[func_index];
+
+            CELL result;
+            if (vm_argc <= reusable_frame_max_argc) {
+                GET_ENV(reusable_frame)->count = make_int(vm_argc);
+                vm_pop_frame(reusable_frame, vm_argc, 0);
+                result = (*func_entry)(reusable_frame);
                 GET_ENV(reusable_frame)->count = make_int(0);
-
-                if (EXCEPTIONP(result)) {
-                    EXCEPTION *exn = GET_EXCEPTION(result);
-                    // TODO - need to stash func names in func_entries
-                    // if (FALSEP(exn->source_str)) {
-                    //     exn->source_str = GET_FUNC(value)->name_str;
-                    // }
-                    vm_push(result);
-                    vm_argc = 1;
-                    value = vm_exn_handler;
-                    ////frame = V_EMPTY;
-                    goto restart;
-                }
-                value = result;
-                break;
-            }
-            case VM_PRIM_N: {
-                vm_argc = GET_INT(program[vm_pc++]);
-                //printf("prim%lld\n", vm_argc);
-
-                const INT func_index = GET_INT(value);
-                const FUNC_ENTRY func_entry = func_entries[func_index];
-
-                CELL result;
-                if (vm_argc <= reusable_frame_max_argc) {
-                    GET_ENV(reusable_frame)->count = make_int(vm_argc);
-                    vm_pop_frame(reusable_frame, vm_argc, 0);
-                    result = (*func_entry)(reusable_frame);
-                    GET_ENV(reusable_frame)->count = make_int(0);
-                } else {
-                    CELL func_frame = make_env(vm_argc, V_NULL);
-                    gc_root_1("VM_CALL #<primitive>", func_frame);
-                    vm_pop_frame(func_frame, vm_argc, 0);
-                    result = (*func_entry)(func_frame);
-                    gc_unroot();
-                }
-
-                if (EXCEPTIONP(result)) {
-                    EXCEPTION *exn = GET_EXCEPTION(result);
-                    if (FALSEP(exn->source_str)) {
-                        exn->source_str = GET_FUNC(value)->name_str;
-                    }
-                    vm_push(result);
-                    vm_argc = 1;
-                    value = vm_exn_handler;
-                    ////frame = V_EMPTY;
-                    goto restart;
-                }
-                value = result;
-                break;
-            }
-
-            default: {
+            } else {
+                CELL func_frame = make_env(vm_argc, V_NULL);
+                gc_root_1("VM_CALL #<primitive>", func_frame);
+                vm_pop_frame(func_frame, vm_argc, 0);
+                result = (*func_entry)(func_frame);
                 gc_unroot();
-                return make_exception("unknown opcode %d", opcode);
             }
+
+            if (EXCEPTIONP(result)) {
+                EXCEPTION *exn = GET_EXCEPTION(result);
+                if (FALSEP(exn->source_str)) {
+                    exn->source_str = GET_FUNC(value)->name_str;
+                }
+                vm_push(result);
+                vm_argc = 1;
+                value = vm_exn_handler;
+                ////frame = V_EMPTY;
+                goto RESTART_VM_CALL;
+            }
+            value = result;
+            NEXT_OP();
         }
     }
 }
