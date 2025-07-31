@@ -1,12 +1,12 @@
 ; Virtual instructions:
 ;
-;   (label LABEL)				-- declare LABEL
-;   (template ARGC ARGV)        -- declare a closure taking ARGC arguments, and wanting "rest" args if ARGV is #t
-;   (branch-false LABEL)        -- if !value then pc = LABEL
-;   (branch-true LABEL)         -- if value then pc = LABEL
-;   (branch LABEL)				-- pc = LABEL
-;   (lit VALUE)					-- value = VALUE
-;   (push)                      -- push VALUE to stack
+;   (label LABEL)           -- declare LABEL
+;   (template ARGC ARGV)    -- declare a closure taking ARGC arguments, and wanting "rest" args if ARGV is #t
+;   (branch-false LABEL)    -- if !value then pc = LABEL
+;   (branch-true LABEL)     -- if value then pc = LABEL
+;   (branch LABEL)          -- pc = LABEL
+;   (lit VALUE)             -- value = VALUE
+;   (push)                  -- push VALUE to stack
 ;   (call-n ARG-COUNT)
 ;       -- call function in value with ARG-COUNT args from the stack
 ;       -- if value contains a builtin,
@@ -15,15 +15,15 @@
 ;       --   call the proc and leave the result in value
 ;       -- if value contains a closure, copy the args into a frame
 ;
-;   (declare-global SYM)		-- reserve space in global symbol table if needed
-;   (set-global SYM)			-- *locate_global(SYM) = value
-;   (get-global SYM)			-- value = *locate_global(SYM)
-;	(set-slot FRAME SLOT)		-- *locate_slot(FRAME,SLOT) = value
-;   (get-slot FRAME SLOT)		-- value = *locate_slot(FRAME,SLOT)
-;   (make-closure LABEL)		-- value = make_closure(LABEL,env)
-;   (return)					-- pop pc, env
-;   (void)						-- value = void
-;   (halt)						-- terminate machine, returning value as final result
+;   (declare-global SYM)    -- reserve space in global symbol table if needed
+;   (set-global SYM)        -- *locate_global(SYM) = value
+;   (get-global SYM)        -- value = *locate_global(SYM)
+;	  (set-slot FRAME SLOT)   -- *locate_slot(FRAME,SLOT) = value
+;   (get-slot FRAME SLOT)   -- value = *locate_slot(FRAME,SLOT)
+;   (make-closure LABEL)    -- value = make_closure(LABEL,env)
+;   (return)                -- pop pc, env
+;   (void)                  -- value = void
+;   (halt)                  -- terminate machine, returning value as final result
 ;
 ; Registers:
 ;   value
@@ -56,7 +56,11 @@
      newline write-char
      %call/cc
 
-     %values->list  ;; not r5rs!
+     error
+     ;; not r5rs!
+     %values->list
+     %vm-current-exception-handler
+     %vm-set-exception-handler
      ))
 
 ; r5rs (wisp library funcs) (TODO)
@@ -266,16 +270,18 @@
           (cc:linkage-code body-linkage)
           (cc:linkage-procs body-linkage))))))
 
-(define (cc:inlinable? func-sym env)
+(define (cc:primitive? func-sym env)
   (and
     (symbol? func-sym)
-    (not (eq? func-sym 'apply)) ;; TODO - fix horrid special case
-    (not (eq? func-sym '%call/cc)) ;; TODO - fix horrid special case
     (not (cc:env-lookup func-sym env))
     (memv func-sym cc:r5rs-builtin)
-    (%func? (eval func-sym #f))))
+    (let ((fn (eval func-sym #f)))
+      (and
+        (%func? fn)
+        (not (eq? fn apply))
+        (not (eq? fn %call/cc))))))
 
-(define (cc:inline-application func-sym args env)
+(define (cc:primitive-application func-sym args env)
   (let* ((func (eval func-sym #f))
           (argc (length args))
           (min-arity (%func-min-arity func))
@@ -307,8 +313,8 @@
 ; the procedure with the evaluated arguments, leaving the result in the value
 ; register.
 (define (cc:application func args env)
-  (if (cc:inlinable? func env)
-    (cc:inline-application func args env)
+  (if (cc:primitive? func env)
+    (cc:primitive-application func args env)
     (let ((argc (length args)))
       (cc:join-linkages
         (cc:evaluate-args args env)

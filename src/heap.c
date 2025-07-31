@@ -52,6 +52,7 @@ CELL make_func(
     const char *help_body,
     FUNC_ENTRY func_entry,
     LABEL receiver,
+    INT vm_special,
     INT min_args,
     INT max_args
 ) {
@@ -76,6 +77,7 @@ CELL make_func(
     p->help_body_str = help_body_str;
     p->func_index = make_int((INT) func_index);
     p->receiver = make_int(receiver);
+    p->vm_special = make_int(vm_special);
     p->min_args = make_int(min_args);
     p->max_args = (max_args < 0) ? V_FALSE : make_int(max_args);
     func_entries[func_index++] = func_entry;

@@ -65,6 +65,7 @@ typedef struct struct_func {
     CELL help_body_str;
     CELL func_index;
     CELL receiver;
+    CELL vm_special;
     CELL min_args;
     CELL max_args;
 } FUNC;
@@ -590,6 +591,7 @@ static inline bool TRUEP(CELL cell) { return cell.as_bits != V_FALSE.as_bits; }
 typedef struct {
     FUNC_ENTRY fn;
     LABEL receiver;
+    int vm_special;
     int min_args;
     int max_args;
     const char *name;
@@ -600,7 +602,7 @@ typedef struct {
 #define DECLARE_FUNC(FUNC_PTR, MIN_ARGS, MAX_ARGS, SYMBOL_NAME, HELP_ARGS, HELP_BODY) \
 	CELL FUNC_PTR(CELL); \
 	const static FUNC_META meta_ ## FUNC_PTR = { \
-		FUNC_PTR, 0, MIN_ARGS, MAX_ARGS, \
+		FUNC_PTR, 0, 0, MIN_ARGS, MAX_ARGS, \
 		SYMBOL_NAME, \
 		HELP_ARGS, \
 		HELP_BODY \
@@ -609,9 +611,9 @@ typedef struct {
 #define DECLARE_FUNC_0(FUNC_PTR, SYMBOL_NAME, HELP_BODY) \
     DECLARE_FUNC(FUNC_PTR, 0, 0, SYMBOL_NAME, "", HELP_BODY)
 
-#define DECLARE_INLINE(META_NAME, RECEIVER, MIN_ARGS, MAX_ARGS, SYMBOL_NAME, HELP_ARGS, HELP_BODY) \
+#define DECLARE_INLINE(META_NAME, RECEIVER, VM_SPECIAL, MIN_ARGS, MAX_ARGS, SYMBOL_NAME, HELP_ARGS, HELP_BODY) \
 	const static FUNC_META META_NAME = { \
-		0, RECEIVER, MIN_ARGS, MAX_ARGS, \
+		0, RECEIVER, VM_SPECIAL, MIN_ARGS, MAX_ARGS, \
 		SYMBOL_NAME, \
 		HELP_ARGS, \
 		HELP_BODY \
@@ -715,8 +717,8 @@ extern CELL make_symbol_gensym();
 
 extern CELL make_compiled_lambda(bool is_macro, INT argc, bool want_rest, INT max_slot, INT depth, CELL body);
 
-extern CELL make_func(const char *name, const char *help_args, const char *help_body, FUNC_ENTRY entry, LABEL receiver,
-                      INT min_args, INT max_args);
+extern CELL make_func(const char *name, const char *help_args, const char *help_body, FUNC_ENTRY entry,
+    LABEL receiver, INT vm_special, INT min_args, INT max_args);
 
 extern CELL make_exception2(CELL extra, const char *fmt, ...);
 

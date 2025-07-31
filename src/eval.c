@@ -8,6 +8,7 @@
 #include "print.h"
 #include "signals.h"
 #include "trace.h"
+#include "vm.h"
 #include <inttypes.h>
 
 #if defined(TRACE_EVAL_ENABLE)
@@ -1445,14 +1446,14 @@ CELL func_interaction_environment(CELL frame) {
 
 DECLARE_INLINE(
     meta_apply,
-    l_inline_apply_receiver, 2, 2,
+    l_inline_apply_receiver, VM_SPECIAL_APPLY, 2, 2,
     "apply", "proc list",
     "Returns the result of applying <proc> to the arguments in <list>."
 )
 
 DECLARE_INLINE(
     meta_eval,
-    l_inline_eval_receiver, 2, 2,
+    l_inline_eval_receiver, VM_SPECIAL_EVAL, 2, 2,
     "%eval", "expr:obj environment",
     "Returns the result of evaluating <obj> in the given <environment>."
     "The <environment> argument is currently ignored."
@@ -1460,14 +1461,14 @@ DECLARE_INLINE(
 
 DECLARE_INLINE(
     meta_call_cc,
-    l_inline_call_cc_receiver, 1, 1,
+    l_inline_call_cc_receiver, VM_SPECIAL_CALL_CC, 1, 1,
     "%call/cc", "proc",
     "Calls <proc> with the current continuation."
 )
 
 DECLARE_INLINE(
     meta_return_from_interpreter,
-    l_inline_return_receiver, 1, 1,
+    l_inline_return_receiver, VM_SPECIAL_RETURN, 1, 1,
     "%return-from-interpreter", "obj",
     "Exits the interpreter loop, returning <obj>."
 )

@@ -50,7 +50,8 @@ CELL register_func(const FUNC_META *meta) {
         result = make_symbol(word);
         const CELL fn = make_func(
             word, meta->help_args, meta->help_body,
-            meta->fn, receiver, meta->min_args, meta->max_args);
+            meta->fn, receiver, meta->vm_special,
+            meta->min_args, meta->max_args);
         GET_SYMBOL(result)->binding = fn;
     }
     gc_unroot();
