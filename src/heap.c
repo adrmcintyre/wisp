@@ -286,6 +286,7 @@ CELL make_reified_continuation(CELL stack_frame) {
     CELL continuation = gc_alloc(REIFIED_CONTINUATION);
     REIFIED_CONTINUATION *p = GET_REIFIED_CONTINUATION(continuation);
     p->cont = stack_frame;
+    p->pad_reloc = V_EMPTY;
     gc_unroot();
     return continuation;
 }
