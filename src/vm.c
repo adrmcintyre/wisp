@@ -12,7 +12,6 @@ static CELL globals = V_EMPTY;
 static CELL vm_exn_handler = V_EMPTY;
 
 static const CELL *program = 0;
-static const int reusable_frame_max_argc = 64;
 static CELL reusable_frame;
 
 static INT vm_pc = 0;
@@ -119,7 +118,7 @@ static bool vm_call_func() {
     const FUNC_ENTRY func_entry = func_entries[func_index];
 
     CELL result;
-    if (vm_argc <= reusable_frame_max_argc) {
+    if (vm_argc <= REUSABLE_ENV_COUNT) {
         GET_ENV(reusable_frame)->count = make_int(vm_argc);
         vm_pop_frame(reusable_frame, vm_argc, 0);
         result = (*func_entry)(reusable_frame);
@@ -317,6 +316,8 @@ CELL func_vm_run(CELL frame) {
             const INT label = GET_INT(program[vm_pc++]);
             //printf("make-closure %lld\n", label);
             value = make_vm_closure(label, env);
+            gc_check_cell(&env, "env");
+            gc_check_cell(&value, "value");
             NEXT_OP();
         }
     VM_RETURN: {
@@ -413,7 +414,7 @@ CELL func_vm_run(CELL frame) {
             const FUNC_ENTRY func_entry = func_entries[func_index];
 
             CELL result;
-            if (vm_argc <= reusable_frame_max_argc) {
+            if (vm_argc <= REUSABLE_ENV_COUNT) {
                 GET_ENV(reusable_frame)->count = make_int(vm_argc);
                 vm_pop_frame(reusable_frame, vm_argc, 0);
                 result = (*func_entry)(reusable_frame);
@@ -467,7 +468,9 @@ CELL func_vm_set_exception_handler(CELL frame) {
 }
 
 void vm_register_symbols() {
-    reusable_frame = make_env(reusable_frame_max_argc, V_NULL);
+    reusable_frame = make_reusable_env();
+    GET_ENV(reusable_frame)->count = make_int(0);
+
     register_func(&meta_func_vm_run);
     register_func(&meta_func_vm_current_exception_handler);
     register_func(&meta_func_vm_set_exception_handler);

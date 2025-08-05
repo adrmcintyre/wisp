@@ -340,10 +340,12 @@ CELL make_db_result(void *handle) {
 }
 
 CELL make_vm_closure(INT label, CELL env) {
+    gc_root_1("make_vm_closure", env);
     CELL closure = gc_alloc(VM_CLOSURE);
     VM_CLOSURE *p = GET_VM_CLOSURE(closure);
     p->vm_label = make_int(label);
     p->vm_env = env;
+    gc_unroot();
     return closure;
 }
 

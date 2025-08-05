@@ -21,6 +21,16 @@ CELL make_env(INT count, CELL next_env) {
     return env;
 }
 
+CELL make_reusable_env() {
+    CELL env = gc_alloc(REUSABLE_ENV);
+    REUSABLE_ENV *p = GET_REUSABLE_ENV(env);
+    p->depth = make_int(0);
+    p->count = make_int(REUSABLE_ENV_COUNT);
+    p->next = V_NULL;
+    memset(p->cells, 0, sizeof(p->cells));
+    return env;
+}
+
 // FIXME
 // The more scopes we need to reach through, the slower the lookup
 // we could fix this by using an env with "display" - each frame

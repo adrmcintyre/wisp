@@ -20,9 +20,13 @@ bool gc_check_headroom_list(INT n);
 
 bool gc_check_headroom();
 
+void gc_check_heap();
+
+void gc_check_cell(CELL *cell, const char *label);
+
 #if defined(DEBUG_HEAP)
 
-CELL gc_alloc_raw(char* typename, TYPEID type, size_t extra_bytes);
+CELL gc_alloc_raw(char *typename, TYPEID type, size_t extra_bytes);
 
 #define gc_alloc_extra(t, extra) \
 	gc_alloc_raw(#t, T_ ## t, sizeof(t) + (extra))
@@ -49,7 +53,7 @@ typedef struct struct_gc_frame {
     size_t len;
     size_t depth;
 #if defined(DEBUG_HEAP)
-	const char* caller;
+    const char *caller;
 #endif
     CELL *data[0];
 } GC_FRAME;
@@ -70,7 +74,7 @@ void gc_root_static_impl(CELL *v, const char *name);
 		(GC_FRAME_FIELD) gc_curr_frame, \
 		(GC_FRAME_FIELD) (n), \
 		(GC_FRAME_FIELD) gc_frame_depth++, \
-		(GC_FRAME_FIELD) caller, 
+		(GC_FRAME_FIELD) caller,
 
 #else // !defined(DEBUG_HEAP)
 

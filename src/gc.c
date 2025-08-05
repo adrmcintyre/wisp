@@ -100,7 +100,7 @@ typedef struct {
 
 #if defined(DEBUG_HEAP)
 int opt_heap_check_rand = 0;
-int opt_trace_heap = 0;
+bool opt_trace_heap = false;
 #endif
 
 static bool gc_running = false;
@@ -191,6 +191,7 @@ size_t get_size(CELL v) {
 
         case T_RELOC: return sizeof(RELOC);
         case T_ENV: return sizeof(ENV) + GET_INT(GET_ENV(v)->count) * sizeof(CELL);
+        case T_REUSABLE_ENV: return sizeof(REUSABLE_ENV);
         case T_STACK_FRAME: return sizeof(STACK_FRAME) + label_info[(LABEL) GET_INT(GET_STACK_FRAME(v)->pc)].len *
                                    sizeof(CELL);
         case T_STRING: return sizeof(STRING) + (GET_STRING(v)->len + 1) * sizeof(char);
@@ -198,6 +199,8 @@ size_t get_size(CELL v) {
         case T_VECTOR: return sizeof(VECTOR) + GET_VECTOR(v)->len * sizeof(CELL);
         case T_RECORD: return sizeof(RECORD) + GET_RECORD(v)->len * sizeof(CELL);
         case T_VALUES: return sizeof(VALUES);
+        case T_VM_CLOSURE: return sizeof(VM_CLOSURE);
+        case T_VM_CONTINUATION: return sizeof(VM_CONTINUATION);
         case T_PORT: return sizeof(PORT);
         case T_DB_CONNECTION: return sizeof(DB_CONNECTION);
         case T_DB_RESULT: return sizeof(DB_RESULT);
@@ -237,6 +240,8 @@ const char *get_typename(TYPEID type) {
         case T_VECTOR: return "VECTOR";
         case T_RECORD: return "RECORD";
         case T_VALUES: return "VALUES";
+        case T_VM_CLOSURE: return "VM_CLOSURE";
+        case T_VM_CONTINUATION: return "VM_CONTINUATION";
         case T_PORT: return "PORT";
         case T_DB_CONNECTION: return "DB_CONNECTION";
         case T_DB_RESULT: return "DB_RESULT";
@@ -270,7 +275,7 @@ void gc_init(size_t extent) {
 }
 
 #if defined(DEBUG_HEAP)
-static void* ignore_until = 0;
+static void *ignore_until = 0;
 #endif
 
 bool gc_extend_bytes_raw(size_t bytes) {
@@ -284,13 +289,13 @@ bool gc_extend_bytes_raw(size_t bytes) {
 
 bool gc_check_headroom_bytes(size_t bytes) {
 #if defined(DEBUG_HEAP)
-	if (opt_heap_check_rand && random() % 1000 < opt_heap_check_rand) {
-		printf("HDRM (%u)", gc_num_allocs);
-		gc_check_heap();
-		gc_collect();
-		gc_collect();
-		gc_check_heap();
-	}
+    if (opt_heap_check_rand && random() % 1000 < opt_heap_check_rand) {
+        printf("HDRM (%lld)", gc_num_allocs);
+        gc_check_heap();
+        gc_collect();
+        gc_collect();
+        gc_check_heap();
+    }
 #endif
     const bool ok = gc_next + bytes <= gc_end;
     if (!ok) {
@@ -300,7 +305,7 @@ bool gc_check_headroom_bytes(size_t bytes) {
         }
     }
 #if defined(DEBUG_HEAP)
-	ignore_until = gc_next + bytes;
+    ignore_until = gc_next + bytes;
 #endif
     return ok;
 }
@@ -317,28 +322,28 @@ bool gc_check_headroom() {
 // and initialize the type field
 CELL gc_alloc_raw(
 #if defined(DEBUG_HEAP)
-	char* typename,
+    char *typename,
 #endif
     TYPEID type,
     size_t bytes
 ) {
 #if defined(DEBUG_HEAP)
-	if (ignore_until && gc_next + ALIGN_SIZE_UP(bytes) > ignore_until) {
-		ignore_until = 0;
-	}
-	if (!ignore_until) {
-		if (opt_heap_check_rand && random() % 1000 < opt_heap_check_rand) {
-			printf("(%u) ", gc_num_allocs);
-			gc_check_heap();
-			gc_collect();
-			gc_collect();
-			gc_check_heap();
-		}
-	}
-	if (opt_trace_heap) {
-		++gc_num_allocs;
-		printf("(%u) allocing %s (%zu bytes)\n", gc_num_allocs, typename, bytes);
-	}
+    if (ignore_until && gc_next + ALIGN_SIZE_UP(bytes) > ignore_until) {
+        ignore_until = 0;
+    }
+    if (!ignore_until) {
+        if (opt_heap_check_rand && random() % 1000 < opt_heap_check_rand) {
+            printf("(%lld) ", gc_num_allocs);
+            gc_check_heap();
+            gc_collect();
+            gc_collect();
+            gc_check_heap();
+        }
+    }
+    if (opt_trace_heap) {
+        ++gc_num_allocs;
+        printf("(%lld) allocing %s (%zu bytes)\n", gc_num_allocs, typename, bytes);
+    }
 #endif
     bytes = ALIGN_SIZE_UP(bytes);
     CELL result = {.as_object = gc_next};
@@ -449,6 +454,7 @@ void gc_half_space(CELL *root) {
         } else if (HAS_VALUE_TAG(cell, T_INDIRECT_TAG)) {
             // TODO provide an accessor for this
             switch (cell.as_bits & INDIRECT_TAG_MASK) {
+                case T_REUSABLE_ENV:
                 case T_ENV: {
                     ENV *p = raw_ptr;
                     INT n = GET_INT(p->count);
@@ -498,6 +504,18 @@ void gc_half_space(CELL *root) {
                     gc_relocate(&p->value_list);
                     break;
                 }
+                case T_VM_CLOSURE: {
+                    VM_CLOSURE *p = raw_ptr;
+                    gc_relocate(&p->vm_env);
+                    break;
+                }
+                case T_VM_CONTINUATION: {
+                    VM_CONTINUATION *p = raw_ptr;
+                    gc_relocate(&p->vm_env);
+                    gc_relocate(&p->vm_stack);
+                    break;
+                }
+
                 case T_PORT: {
                     PORT *p = raw_ptr;
                     gc_relocate(&p->path_str);
@@ -628,7 +646,7 @@ void gc_check_heap() {
             for (size_t i = 0; i < gc_frame->len; ++i) {
                 static char buf[256];
 #if defined(DEBUG_HEAP)
-				sprintf(buf, "%s depth %zu offset %zu", gc_frame->caller, depth, i);
+                sprintf(buf, "%s depth %zu offset %zu", gc_frame->caller, depth, i);
 #else
                 sprintf(buf, "%s depth %zu offset %zu", "dynamic depth", depth, i);
 #endif
@@ -645,7 +663,7 @@ void gc_check_heap() {
     while (raw_ptr < gc_next) {
         CELL *cell_ptr = raw_ptr;
         CELL cell = *cell_ptr;
-        printf("checking %s\n", get_typename(GET_TYPE(cell)));
+        //      printf("checking %s\n", get_typename(GET_TYPE(cell)));
         if (OBJECTP(cell)) {
             gc_check_cell(cell_ptr, "cell");
             raw_ptr += sizeof(CELL);
@@ -653,6 +671,7 @@ void gc_check_heap() {
             // TODO provide an accessor for this
             switch (cell.as_bits & INDIRECT_TAG_MASK) {
                 // TODO assert sensible things about other fields
+                case T_REUSABLE_ENV:
                 case T_ENV: {
                     // INTP(depth) && depth >= 0
                     // INTEGERP(count) && count >= 0
@@ -715,6 +734,18 @@ void gc_check_heap() {
                     gc_check_cell(&values->value_list, "VALUES.value_list");
                     break;
                 }
+                case T_VM_CLOSURE: {
+                    VM_CLOSURE *p = raw_ptr;
+                    gc_check_cell(&p->vm_env, "VM_CLOSURE.vm_env");
+                    break;
+                }
+                case T_VM_CONTINUATION: {
+                    VM_CONTINUATION *p = raw_ptr;
+                    gc_check_cell(&p->vm_env, "VM_CONTINUATION.vm_env");
+                    gc_check_cell(&p->vm_stack, "VM_CONTINUATION.vm_stack");
+                    break;
+                }
+
                 case T_PORT: {
                     // STRINGP(path_str)
                     // mode_ch == make_char('r') || mode_ch == make_char('w')
@@ -811,7 +842,7 @@ void gc_collect() {
     {
         for (size_t i = 0; i < gc_static_root_count; ++i) {
 #if defined(DEBUG_HEAP)
-			printf("static root %zu: %s\n", i, gc_static_root_name[i]);
+            printf("static root %zu: %s\n", i, gc_static_root_name[i]);
 #endif
             gc_half_space(gc_static_root[i]);
         }
@@ -824,7 +855,7 @@ void gc_collect() {
         while (gc_frame) {
             for (size_t i = 0; i < gc_frame->len; ++i) {
 #if defined(DEBUG_HEAP)
-				printf("%s at depth %zu, offset %zu\n", gc_frame->caller, depth, i);
+                printf("%s at depth %zu, offset %zu\n", gc_frame->caller, depth, i);
 #else
                 //printf("%s at depth %zu, offset %zu\n", "dynamic root", depth, i);
 #endif
@@ -935,19 +966,24 @@ CELL func_gc_check(CELL frame) {
 }
 
 #if defined(DEBUG_HEAP)
-CELL func_trace_heap(CELL frame)
-{
-	if (FC == 0) {
-		return make_bool(opt_trace_heap);
-	}
-	opt_trace_heap = TRUEP(FV0);
-	return V_VOID;
+DECLARE_FUNC(
+    func_trace_heap, 0, 1,
+    "trace-heap", "[bool]",
+    "Returns current value of heap tracing flag, or sets it if <bool> supplied."
+)
+
+CELL func_trace_heap(CELL frame) {
+    if (FC == 0) {
+        return make_bool(opt_trace_heap);
+    }
+    opt_trace_heap = TRUEP(FV0);
+    return V_VOID;
 }
 #endif
 
 void gc_register_symbols() {
 #if defined(DEBUG_HEAP)
-	register_func("trace-heap", func_trace_heap,  0, 1);
+    register_func(&meta_func_trace_heap);
 #endif
     register_func(&meta_func_gc);
     register_func(&meta_func_gc_check);

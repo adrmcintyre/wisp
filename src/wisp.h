@@ -91,6 +91,17 @@ typedef struct struct_env {
     CELL cells[0];
 } ENV;
 
+#define REUSABLE_ENV_COUNT 64
+
+// identical layout to struct_env, but with fixed cells array
+typedef struct struct_reusable_env {
+    CELL tag;
+    CELL depth;
+    CELL count;
+    CELL next;
+    CELL cells[REUSABLE_ENV_COUNT];
+} REUSABLE_ENV;
+
 typedef struct struct_stack_frame {
     CELL tag;
     CELL pc;
@@ -190,6 +201,7 @@ union union_object {
     // Indirectly tagged objects
     RELOC v_reloc;
     ENV v_env;
+    REUSABLE_ENV v_reusable_env;
     STACK_FRAME v_stack_frame;
     STRING v_string;
     KEYWORD v_keyword;
@@ -341,10 +353,11 @@ static const TYPEID T_RECORD = 0x28;
 static const TYPEID T_VALUES = 0x29;
 static const TYPEID T_VM_CLOSURE = 0x2a;        // TODO - swap with T_REIFIED_CONTINUATION?
 static const TYPEID T_VM_CONTINUATION = 0x2b;
+static const TYPEID T_REUSABLE_ENV = 0x2c;
 
-static const TYPEID T_PORT = 0x2c;
-static const TYPEID T_DB_CONNECTION = 0x2d;
-static const TYPEID T_DB_RESULT = 0x2e;
+static const TYPEID T_PORT = 0x2d;
+static const TYPEID T_DB_CONNECTION = 0x2e;
+static const TYPEID T_DB_RESULT = 0x2f;
 
 static const uint64_t NULL_BITS = 0x0000000000000000;
 static const uint64_t EMPTY_BITS = (uint64_t) T_EMPTY << 45;
@@ -535,6 +548,7 @@ static inline EXCEPTION *GET_EXCEPTION(CELL cell) {
 // Object getters (indirect tagged)
 static inline RELOC *GET_RELOC(CELL cell) { return &cell.as_object->v_reloc; }
 static inline ENV *GET_ENV(CELL cell) { return &cell.as_object->v_env; }
+static inline REUSABLE_ENV *GET_REUSABLE_ENV(CELL cell) { return &cell.as_object->v_reusable_env; }
 static inline STACK_FRAME *GET_STACK_FRAME(CELL cell) { return &cell.as_object->v_stack_frame; }
 static inline STRING *GET_STRING(CELL cell) { return &cell.as_object->v_string; }
 static inline KEYWORD *GET_KEYWORD(CELL cell) { return &cell.as_object->v_keyword; }
